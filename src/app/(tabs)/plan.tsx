@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   Linking,
@@ -16,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PlannerMap } from '@/components/PlannerMap';
 import { estimateFare, formatKm, formatMoney } from '@/lib/fare';
 import { useI18n, type StringKey } from '@/lib/i18n';
-import { googleMapsLink, planRoute, searchPlaces, type Place, type PlannedRoute } from '@/lib/routing';
+import { googleMapsLink, planRoute, resolvePlace, searchPlaces, type Place, type PlannedRoute } from '@/lib/routing';
 import { loadTariff } from '@/lib/storage';
 import { colors, radius } from '@/theme';
 
@@ -91,13 +92,19 @@ export default function PlanScreen() {
   const route = plan?.route ?? null;
   const error = plan?.error ?? null;
   const routing = routeKey != null && !plan;
-  const pick = (p: Place) => {
-    const point = { label: p.label, lat: p.lat, lng: p.lng };
-    if (editing === 'from') setFrom(point);
-    else setTo(point);
+  const pick = async (p: Place) => {
+    const field = editing;
     setEditing(null);
     setQuery('');
     Keyboard.dismiss();
+    try {
+      const { lat, lng } = await resolvePlace(p);
+      const point = { label: p.label, lat, lng };
+      if (field === 'from') setFrom(point);
+      else setTo(point);
+    } catch {
+      Alert.alert(t('networkFail'));
+    }
   };
 
   const useCurrent = async () => {
@@ -118,7 +125,7 @@ export default function PlanScreen() {
   };
 
   const tariff = loadTariff();
-  const estimate = route && plan ? estimateFare(tariff, route.distanceM, route.durationSec, plan.at) : null;
+  const estimate = route && plan ? estimateFare(tariff, route.distanceM, route.durationSec, plan.at, route.trafficDurationSec) : null;
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -168,7 +175,7 @@ export default function PlanScreen() {
           <FlatList
             data={current?.places ?? []}
             keyboardShouldPersistTaps="handled"
-            keyExtractor={(p, i) => `${p.lat},${p.lng},${i}`}
+            keyExtractor={(p, i) => `${p.googleId ?? `${p.lat},${p.lng}`},${i}`}
             renderItem={({ item }) => (
               <Pressable style={styles.result} onPress={() => pick(item)}>
                 <Ionicons name="location-outline" size={20} color={colors.textMuted} />
@@ -219,7 +226,7 @@ export default function PlanScreen() {
                   </Text>
                   <View style={styles.row}>
                     <Stat label={t('distance')} value={`${formatKm(route.distanceM)} km`} />
-                    <Stat label={t('driveTime')} value={t('minutes', { m: Math.max(1, Math.round(route.durationSec / 60)) })} />
+                    <Stat label={t('driveTime')} value={t('minutes', { m: Math.max(1, Math.round((route.trafficDurationSec ?? route.durationSec) / 60)) })} />
                   </View>
                   <Text style={styles.note}>{t('estimateNote')}</Text>
                   {from && to ? (

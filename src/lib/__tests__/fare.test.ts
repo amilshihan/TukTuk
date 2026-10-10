@@ -77,3 +77,13 @@ test('estimate includes the night rate', () => {
   const night = estimateFare(t, 10_000, 25 * 60, new Date(2026, 0, 1, 23).getTime());
   assert.ok(night.low > day.low && night.high > day.high, JSON.stringify({ day, night }));
 });
+
+test('live traffic widens the estimate when roads are jammed', () => {
+  const noon = new Date(2026, 0, 1, 12).getTime();
+  const clear = estimateFare(DEFAULT_TARIFF, 10_000, 25 * 60, noon, 25 * 60);
+  const jammed = estimateFare(DEFAULT_TARIFF, 10_000, 25 * 60, noon, 55 * 60);
+  assert.equal(clear.low, jammed.low);
+  assert.ok(jammed.high > clear.high, JSON.stringify({ clear, jammed }));
+  // Clear roads with live data: 10% detour + 30% buffer (7.5 min) -> 100 + 10 x 85 + 8 x 5 = 990 -> 1000
+  assert.deepEqual(clear, { low: 850, high: 1000 });
+});

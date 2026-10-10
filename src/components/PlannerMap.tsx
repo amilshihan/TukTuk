@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { RoutePoint } from '@/lib/meter';
 import { colors } from '@/theme';
 import { mapHtml } from './mapHtml';
+import { NativeMap, useNativeMaps } from './NativeMap';
 
 type LatLng = { lat: number; lng: number };
 
@@ -12,17 +13,30 @@ type LatLng = { lat: number; lng: number };
  * and reports taps so the driver can drop the destination on the map.
  * Updates are pushed in with injectJavaScript so the map isn't reloaded.
  */
-export function PlannerMap({
-  from,
-  to,
-  route,
-  onTap,
-}: {
+type Props = {
   from: LatLng | null;
   to: LatLng | null;
   route: RoutePoint[] | null;
   onTap: (p: LatLng) => void;
-}) {
+};
+
+export function PlannerMap(props: Props) {
+  if (useNativeMaps) {
+    return (
+      <View style={styles.wrap}>
+        <NativeMap {...props} />
+      </View>
+    );
+  }
+  return <WebPlannerMap {...props} />;
+}
+
+function WebPlannerMap({
+  from,
+  to,
+  route,
+  onTap,
+}: Props) {
   const ref = useRef<WebView>(null);
   const ready = useRef(false);
   const data = JSON.stringify({ from, to, route });

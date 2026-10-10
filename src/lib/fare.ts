@@ -87,24 +87,33 @@ function round2(n: number): number {
 export const ESTIMATE_DETOUR = 0.1;
 /** In heavy traffic the tuk tuk stands still for roughly this share of the free-flow driving time. */
 export const ESTIMATE_TRAFFIC_STOP = 0.6;
+/** With live traffic known, allow this share of free-flow time on top of the current delay for things getting worse. */
+export const ESTIMATE_TRAFFIC_BUFFER = 0.3;
 
 /**
  * Fare range for a planned route before the hire starts.
  * Low: the route driven with no waiting. High: a little extra distance and
- * stop-and-go traffic billed as waiting. Real fares can go above this in
- * extreme conditions (long jams, road closures, extra stops).
+ * stop-and-go traffic billed as waiting: the live traffic delay plus a buffer
+ * when the route service knows current traffic, otherwise a typical heavy-traffic
+ * share. Real fares can go above this in extreme conditions (long jams, road
+ * closures, extra stops).
  */
 export function estimateFare(
   tariff: Tariff,
   routeDistanceM: number,
   routeDurationSec: number,
   at: number,
+  trafficDurationSec?: number,
 ): { low: number; high: number } {
+  const jamSec =
+    trafficDurationSec != null
+      ? Math.max(0, trafficDurationSec - routeDurationSec) + routeDurationSec * ESTIMATE_TRAFFIC_BUFFER
+      : routeDurationSec * ESTIMATE_TRAFFIC_STOP;
   const low = calculateFare(tariff, routeDistanceM, 0, at).total;
   const high = calculateFare(
     tariff,
     routeDistanceM * (1 + ESTIMATE_DETOUR),
-    routeDurationSec * ESTIMATE_TRAFFIC_STOP,
+    jamSec,
     at,
   ).total;
   // Round outwards to friendly numbers: Rs 850 – 1,050 rather than Rs 865 – 1,025.

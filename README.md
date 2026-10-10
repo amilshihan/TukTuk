@@ -71,5 +71,6 @@ Code layout:
 ## Notes
 
 - The default rates (Rs 100 first km, Rs 85/km, Rs 5/min waiting, no night rate) are placeholders. Set your own in Settings.
-- Maps use OpenFreeMap vector tiles (free, no API key, commercial use allowed) drawn with MapLibre. Route planning uses the free Valhalla server and place search uses Photon; both are community servers with fair-use limits, so self-host or switch to a paid provider at scale.
+- **Maps with Google** (`EXPO_PUBLIC_GOOGLE_MAPS_KEY` set): native Google map on Android, Apple Maps on iPhone, Google place search (Places API New) and traffic-aware routes avoiding expressways (Routes API). Enable **Maps SDK for Android**, **Places API (New)** and **Routes API** on the key, restrict the key to those three APIs, and set daily quotas in Google Cloud.
+- **Without a Google key**: OpenFreeMap tiles via MapLibre, Valhalla routes and Photon search, all free with no key (community servers with fair-use limits).
 - The Sinhala and Tamil text should be checked by a native speaker.
