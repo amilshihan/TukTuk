@@ -71,5 +71,5 @@ Code layout:
 ## Notes
 
 - The default rates (Rs 100 first km, Rs 85/km, Rs 5/min waiting, no night rate) are placeholders. Set your own in Settings.
-- Route maps use CARTO's OpenStreetMap basemap, which is free for low volume (about 75,000 map views a month). Beyond that, or for commercial use at scale, get a CARTO or other tile-provider plan.
+- Maps use OpenFreeMap vector tiles (free, no API key, commercial use allowed) drawn with MapLibre. Route planning uses the free Valhalla server and place search uses Photon; both are community servers with fair-use limits, so self-host or switch to a paid provider at scale.
 - The Sinhala and Tamil text should be checked by a native speaker.

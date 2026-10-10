@@ -1,38 +1,30 @@
+import { useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { RoutePoint } from '@/lib/meter';
 import { colors, radius } from '@/theme';
+import { mapHtml } from './mapHtml';
 
 /**
- * Route on a real map, drawn with Leaflet in a WebView. No API key is needed:
- * tiles come from CARTO's OpenStreetMap basemap (free for low volume; see README).
- * Needs internet; the receipt still works without it.
+ * A finished trip's route on a real map (receipt). Static: no panning, so it
+ * doesn't fight the screen's scrolling. Needs internet; the receipt works without it.
  */
 export function RouteMap({ route, height = 220 }: { route: RoutePoint[]; height?: number }) {
-  const html = `<!doctype html><html><head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<style>html,body,#m{height:100%;margin:0;background:${colors.surface}}</style>
-</head><body><div id="m"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-var pts = ${JSON.stringify(route)};
-var m = L.map('m', { zoomControl: false, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false });
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  maxZoom: 19, subdomains: 'abcd',
-  attribution: '&copy; OpenStreetMap &copy; CARTO'
-}).addTo(m);
-var line = L.polyline(pts, { color: '${colors.accent}', weight: 5, opacity: 0.95 }).addTo(m);
-L.circleMarker(pts[0], { radius: 7, color: '#000', weight: 2, fillColor: '${colors.go}', fillOpacity: 1 }).addTo(m);
-L.circleMarker(pts[pts.length - 1], { radius: 7, color: '#000', weight: 2, fillColor: '${colors.stop}', fillOpacity: 1 }).addTo(m);
-m.fitBounds(line.getBounds(), { padding: [28, 28], maxZoom: 17 });
-</script></body></html>`;
+  const ref = useRef<WebView>(null);
+  const html = useMemo(() => mapHtml({ interactive: false }), []);
+  const data = JSON.stringify({
+    from: { lat: route[0][0], lng: route[0][1] },
+    to: { lat: route[route.length - 1][0], lng: route[route.length - 1][1] },
+    route,
+  });
 
   return (
     <View style={[styles.wrap, { height }]}>
       <WebView
+        ref={ref}
         originWhitelist={['*']}
         source={{ html }}
+        onLoadEnd={() => ref.current?.injectJavaScript(`window.setData(${data}); true;`)}
         scrollEnabled={false}
         style={styles.web}
         javaScriptEnabled
