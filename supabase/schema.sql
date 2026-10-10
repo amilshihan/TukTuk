@@ -78,7 +78,26 @@ alter table public.trips add column if not exists night_charge numeric(10, 2) no
 -- [[lat, lng], ...] of the route driven.
 alter table public.trips add column if not exists route jsonb;
 
+-- Full trip details for the operator's records.
+alter table public.trips alter column ended_at drop not null; -- null while the hire is running
+alter table public.trips add column if not exists status text not null default 'completed'
+  check (status in ('in_progress', 'completed'));
+alter table public.trips add column if not exists vehicle_no text;
+alter table public.trips add column if not exists duration_sec integer;
+alter table public.trips add column if not exists waiting_periods jsonb; -- [{from, to}, ...]
+alter table public.trips add column if not exists start_lat double precision;
+alter table public.trips add column if not exists start_lng double precision;
+alter table public.trips add column if not exists end_lat double precision;
+alter table public.trips add column if not exists end_lng double precision;
+alter table public.trips add column if not exists start_address text;
+alter table public.trips add column if not exists end_address text;
+alter table public.trips add column if not exists app_version text;
+alter table public.trips add column if not exists platform text;
+alter table public.trips add column if not exists tracking_mode text;
+alter table public.trips add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists trips_driver_started_idx on public.trips (driver_id, started_at desc);
+create index if not exists trips_status_idx on public.trips (status) where status = 'in_progress';
 
 alter table public.trips enable row level security;
 
@@ -96,11 +115,81 @@ create policy "drivers update own trips" on public.trips
   using (driver_id = (select auth.uid()))
   with check (driver_id = (select auth.uid()));
 
+-- No delete policy: drivers can't remove trips.
+
+-- A completed trip is a record: later uploads can't change it, except to fill in
+-- addresses that were looked up after the hire ended. A late "in progress"
+-- upload arriving after completion is ignored the same way.
+create or replace function public.protect_completed_trip()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  kept public.trips%rowtype;
+begin
+  if old.status = 'completed' then
+    kept := old;
+    kept.start_address := coalesce(old.start_address, new.start_address);
+    kept.end_address := coalesce(old.end_address, new.end_address);
+    kept.updated_at := now();
+    return kept;
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_completed_trip on public.trips;
+create trigger protect_completed_trip
+  before update on public.trips
+  for each row execute function public.protect_completed_trip();
+
 -- ---------------------------------------------------------------------------
--- Operator view: every driver with their trip totals (Table Editor -> driver_summary).
--- Not exposed to the app: only the dashboard (service role) can read it.
+-- Operator views (Table Editor). Only the dashboard can read them, not the app.
 -- ---------------------------------------------------------------------------
-create or replace view public.driver_summary
+
+-- Every trip with the driver's details, newest first, times in Sri Lanka time.
+drop view if exists public.trip_log;
+create view public.trip_log
+with (security_invoker = true) as
+select
+  t.started_at at time zone 'Asia/Colombo' as started,
+  t.ended_at at time zone 'Asia/Colombo' as ended,
+  t.status,
+  d.full_name as driver,
+  d.mobile,
+  coalesce(t.vehicle_no, d.vehicle_no) as vehicle_no,
+  round(t.distance_m / 1000.0, 2) as km,
+  make_interval(secs => coalesce(t.duration_sec, extract(epoch from (coalesce(t.ended_at, now()) - t.started_at)))) as duration,
+  make_interval(secs => t.waiting_sec) as waiting,
+  jsonb_array_length(coalesce(t.waiting_periods, '[]'::jsonb)) as waiting_stops,
+  t.base_fare,
+  t.distance_charge,
+  t.waiting_charge,
+  t.night_charge,
+  t.total,
+  t.currency,
+  t.start_address,
+  t.end_address,
+  case when t.start_lat is not null and t.end_lat is not null then
+    'https://www.google.com/maps/dir/?api=1&origin=' || t.start_lat || ',' || t.start_lng
+      || '&destination=' || t.end_lat || ',' || t.end_lng
+  end as map_link,
+  t.tracking_mode,
+  t.platform,
+  t.app_version,
+  t.waiting_periods,
+  t.id as trip_id
+from public.trips t
+join public.drivers d on d.id = t.driver_id
+order by t.started_at desc;
+
+revoke all on public.trip_log from anon, authenticated;
+
+-- Every driver with their trip totals (completed trips only).
+drop view if exists public.driver_summary;
+create view public.driver_summary
 with (security_invoker = true) as
 select
   d.full_name,
@@ -109,11 +198,12 @@ select
   d.nic,
   d.licence_no,
   d.address,
-  d.created_at as registered_at,
-  count(t.id) as trips,
-  coalesce(sum(t.total), 0) as total_fares,
-  round(coalesce(sum(t.distance_m), 0) / 1000.0, 1) as total_km,
-  max(t.started_at) as last_trip_at
+  d.created_at at time zone 'Asia/Colombo' as registered_at,
+  count(t.id) filter (where t.status = 'completed') as trips,
+  coalesce(sum(t.total) filter (where t.status = 'completed'), 0) as total_fares,
+  round(coalesce(sum(t.distance_m) filter (where t.status = 'completed'), 0) / 1000.0, 1) as total_km,
+  bool_or(t.status = 'in_progress') as on_hire_now,
+  max(t.started_at) at time zone 'Asia/Colombo' as last_trip_at
 from public.drivers d
 left join public.trips t on t.driver_id = d.id
 group by d.id;

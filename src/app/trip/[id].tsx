@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
@@ -10,7 +10,7 @@ import { RouteSketch } from '@/components/RouteSketch';
 import { useAuth } from '@/lib/auth';
 import { formatDuration, formatKm, formatMoney } from '@/lib/fare';
 import { useI18n } from '@/lib/i18n';
-import { deleteTrip, getTrip, type StoredTrip } from '@/lib/storage';
+import { getTrip, type StoredTrip } from '@/lib/storage';
 import { colors, radius } from '@/theme';
 
 export default function ReceiptScreen() {
@@ -23,6 +23,9 @@ export default function ReceiptScreen() {
 
   useEffect(() => {
     getTrip(id).then(setTrip);
+    // Addresses are looked up just after the hire ends; pick them up when they arrive.
+    const again = setTimeout(() => getTrip(id).then(setTrip), 10_000);
+    return () => clearTimeout(again);
   }, [id]);
 
   if (trip === undefined) return <View style={styles.screen} />;
@@ -62,20 +65,6 @@ export default function ReceiptScreen() {
     }
   };
 
-  const onDelete = () => {
-    Alert.alert(t('deleteQ'), t('deleteBody'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteTrip(trip.id);
-          router.back();
-        },
-      },
-    ]);
-  };
-
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/* Everything in this card goes into the shared image. */}
@@ -92,7 +81,9 @@ export default function ReceiptScreen() {
           {driver ? <Row label={t('driver')} value={driver.full_name} /> : null}
           {driver ? <Row label={t('vehicle')} value={driver.vehicle_no} /> : null}
           <Row label={t('started')} value={when(trip.startedAt)} />
+          {trip.startAddress ? <Row label={t('from')} value={trip.startAddress} /> : null}
           <Row label={t('ended')} value={when(trip.endedAt)} />
+          {trip.endAddress ? <Row label={t('to')} value={trip.endAddress} /> : null}
           <Row label={t('distance')} value={`${formatKm(trip.distanceM)} km`} />
           <Row label={t('tripTime')} value={formatDuration((trip.endedAt - trip.startedAt) / 1000)} />
           <Row label={t('waitingTime')} value={formatDuration(trip.waitingSec)} />
@@ -116,16 +107,10 @@ export default function ReceiptScreen() {
         <Pressable style={[styles.button, styles.primary]} onPress={() => router.back()}>
           <Text style={styles.primaryText}>{t('done')}</Text>
         </Pressable>
-        <View style={styles.secondaryRow}>
-          <Pressable style={[styles.button, styles.secondary]} onPress={onShare}>
-            <Ionicons name="share-social-outline" size={20} color={colors.text} />
-            <Text style={styles.secondaryText}>{t('share')}</Text>
-          </Pressable>
-          <Pressable style={[styles.button, styles.secondary]} onPress={onDelete}>
-            <Ionicons name="trash-outline" size={20} color={colors.bad} />
-            <Text style={[styles.secondaryText, { color: colors.bad }]}>{t('delete')}</Text>
-          </Pressable>
-        </View>
+        <Pressable style={[styles.button, styles.secondary]} onPress={onShare}>
+          <Ionicons name="share-social-outline" size={20} color={colors.text} />
+          <Text style={styles.secondaryText}>{t('share')}</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -163,7 +148,6 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: colors.accent },
   primaryText: { color: colors.accentText, fontSize: 18, fontWeight: '900', letterSpacing: 1 },
-  secondaryRow: { flexDirection: 'row', gap: 10 },
-  secondary: { flex: 1, backgroundColor: colors.surface },
+  secondary: { backgroundColor: colors.surface },
   secondaryText: { color: colors.text, fontSize: 16, fontWeight: '600' },
 });

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 import Storage from 'expo-sqlite/kv-store';
 import type { Session } from '@supabase/supabase-js';
 import type { StringKey } from './i18n';
@@ -78,7 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     const { data } = client.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
+    // Trips finished offline go up the next time the app is opened with a connection.
+    const appState = AppState.addEventListener('change', (s) => {
+      if (s === 'active') syncTrips().catch(() => {});
+    });
+    return () => {
+      data.subscription.unsubscribe();
+      appState.remove();
+    };
   }, [refreshDriver]);
 
   const signIn = useCallback(

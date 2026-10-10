@@ -130,3 +130,16 @@ test('parked GPS speed noise does not end waiting', () => {
   }
   assert.equal(waitingSeconds(trip, 60_000), 55);
 });
+
+test('each waiting period is recorded with its start and end', () => {
+  let trip = startTrip(DEFAULT_TARIFF, 0);
+  trip = setWaiting(trip, true, 10_000);
+  trip = setWaiting(trip, false, 70_000);
+  trip = setWaiting(trip, true, 100_000);
+  const done = finishTrip(trip, 130_000); // still waiting when the hire ends
+  assert.deepEqual(done.waitingPeriods, [
+    [10_000, 70_000],
+    [100_000, 130_000],
+  ]);
+  assert.equal(done.waitingSec, 90);
+});

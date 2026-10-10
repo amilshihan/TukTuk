@@ -18,6 +18,10 @@ export type ActiveTrip = {
   lastFixAt: number | null;
   /** Accepted points, for drawing the route on the receipt. */
   route: RoutePoint[];
+  /** Finished waiting periods as [from, to] ms, for the trip record. */
+  waitingPeriods: [number, number][];
+  /** How GPS ran: 'background' (installed app) or 'foreground' (Expo Go / no permission). */
+  trackingMode?: string | null;
 };
 
 /** [latitude, longitude] rounded to ~1 m to keep the saved trip small. */
@@ -40,6 +44,11 @@ export type Trip = {
   tariff: Tariff;
   fare: FareBreakdown;
   route: RoutePoint[];
+  waitingPeriods: [number, number][];
+  /** Filled in when the hire ends, if the phone could look the address up. */
+  startAddress?: string | null;
+  endAddress?: string | null;
+  trackingMode?: string | null;
 };
 
 export function newId(): string {
@@ -62,6 +71,7 @@ export function startTrip(tariff: Tariff, now: number): ActiveTrip {
     lastMoveAt: now,
     lastFixAt: null,
     route: [],
+    waitingPeriods: [],
   };
 }
 
@@ -109,7 +119,13 @@ export function tick(trip: ActiveTrip, now: number): ActiveTrip {
 export function setWaiting(trip: ActiveTrip, waiting: boolean, now: number): ActiveTrip {
   if (waiting && trip.waitingSince == null) return { ...trip, waitingSince: now };
   if (!waiting && trip.waitingSince != null) {
-    return { ...trip, waitingMs: trip.waitingMs + Math.max(0, now - trip.waitingSince), waitingSince: null };
+    const end = Math.max(trip.waitingSince, now);
+    return {
+      ...trip,
+      waitingMs: trip.waitingMs + (end - trip.waitingSince),
+      waitingSince: null,
+      waitingPeriods: [...trip.waitingPeriods, [trip.waitingSince, end]],
+    };
   }
   return trip;
 }
@@ -125,6 +141,8 @@ export function currentFare(trip: ActiveTrip, now: number): FareBreakdown {
 
 export function finishTrip(trip: ActiveTrip, now: number): Trip {
   const waitingSec = waitingSeconds(trip, now);
+  // Close a waiting period that is still open when the hire ends.
+  const { waitingPeriods } = setWaiting(trip, false, now);
   return {
     id: trip.id,
     startedAt: trip.startedAt,
@@ -134,5 +152,7 @@ export function finishTrip(trip: ActiveTrip, now: number): Trip {
     tariff: trip.tariff,
     fare: calculateFare(trip.tariff, trip.distanceM, waitingSec, trip.startedAt),
     route: trip.route,
+    waitingPeriods,
+    trackingMode: trip.trackingMode ?? null,
   };
 }

@@ -14,7 +14,8 @@ import {
   type Trip,
 } from '@/lib/meter';
 import { loadActiveTrip, loadTariff, saveActiveTrip, saveTrip } from '@/lib/storage';
-import { syncTrips } from '@/lib/sync';
+import { lookupAddress } from '@/lib/geocode';
+import { syncActiveTrip, syncTrips } from '@/lib/sync';
 import {
   getLastAccuracy,
   startTracking,
@@ -56,6 +57,10 @@ export function useMeter() {
       .then((m) => !cancelled && setMode(m))
       .catch(() => !cancelled && setMode('foreground'));
 
+    // Keep the operator's copy of the running hire current, in case the phone dies mid-trip.
+    syncActiveTrip().catch(() => {});
+    const syncTimer = setInterval(() => syncActiveTrip().catch(() => {}), 60_000);
+
     // Coming back from the background: pick up whatever the task recorded.
     const appState = AppState.addEventListener('change', (s) => {
       if (s === 'active') setTrip(loadActiveTrip());
@@ -64,6 +69,7 @@ export function useMeter() {
     return () => {
       cancelled = true;
       clearInterval(timer);
+      clearInterval(syncTimer);
       appState.remove();
       deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
     };
@@ -83,7 +89,7 @@ export function useMeter() {
     }
     setMode(m);
     setNow(ts);
-    setTrip(fresh);
+    setTrip(updateActiveTrip((cur) => ({ ...cur, trackingMode: m })) ?? fresh);
     return true;
   }, [t]);
 
@@ -97,6 +103,16 @@ export function useMeter() {
     setTrip(null);
     setMode(null);
     syncTrips().catch(() => {});
+    // Addresses can take a few seconds; show the receipt now and add them when ready.
+    (async () => {
+      const [startAddress, endAddress] = await Promise.all([
+        lookupAddress(done.route[0]),
+        lookupAddress(done.route[done.route.length - 1]),
+      ]);
+      if (!startAddress && !endAddress) return;
+      await saveTrip({ ...done, startAddress, endAddress });
+      await syncTrips();
+    })().catch(() => {});
     return done;
   }, []);
 
