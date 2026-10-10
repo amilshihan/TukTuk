@@ -1,121 +1,119 @@
 import { useCallback, useEffect, useState } from 'react';
-import * as Location from 'expo-location';
+import { AppState } from 'react-native';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { useI18n } from '@/lib/i18n';
+import { MAX_ACCURACY_M } from '@/lib/geo';
 import {
-  addLocation,
   currentFare,
   finishTrip,
+  FIX_STALE_MS,
   startTrip,
   tick,
   waitingSeconds,
   type ActiveTrip,
   type Trip,
 } from '@/lib/meter';
-import { MAX_ACCURACY_M } from '@/lib/geo';
 import { loadActiveTrip, loadTariff, saveActiveTrip, saveTrip } from '@/lib/storage';
 import { syncTrips } from '@/lib/sync';
+import {
+  getLastAccuracy,
+  startTracking,
+  stopTracking,
+  subscribe,
+  updateActiveTrip,
+  type TrackingMode,
+} from '@/lib/tracking';
 
 export type GpsStatus = 'off' | 'searching' | 'good' | 'weak' | 'denied';
 
 const KEEP_AWAKE_TAG = 'tuktuk-meter';
 
 export function useMeter() {
-  const [trip, setTripState] = useState<ActiveTrip | null>(() => loadActiveTrip());
+  const { t } = useI18n();
+  const [trip, setTrip] = useState<ActiveTrip | null>(() => loadActiveTrip());
   const [now, setNow] = useState(() => Date.now());
-  const [gps, setGps] = useState<GpsStatus>('off');
-  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
-
-  const setTrip = useCallback((update: (t: ActiveTrip | null) => ActiveTrip | null) => {
-    setTripState((prev) => {
-      const next = update(prev);
-      if (next !== prev) saveActiveTrip(next);
-      return next;
-    });
-  }, []);
+  const [mode, setMode] = useState<TrackingMode | null>(null);
 
   const running = trip != null;
 
-  // Tick the clock, keep the screen on and GPS live for the whole hire.
-  // A restored trip (after the app was killed) resumes here too.
+  // Background fixes update storage; mirror them on screen.
+  useEffect(() => subscribe(setTrip), []);
+
+  // While a hire runs: tick every second, keep the screen on, keep GPS going.
+  // A trip restored after the app was killed resumes here too.
   useEffect(() => {
     if (!running) return;
     let cancelled = false;
-    let sub: Location.LocationSubscription | null = null;
+
     const timer = setInterval(() => {
-      const t = Date.now();
-      setNow(t);
-      setTrip((cur) => (cur ? tick(cur, t) : cur));
+      const ts = Date.now();
+      setNow(ts);
+      updateActiveTrip((cur) => tick(cur, ts));
     }, 1000);
     activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
 
-    (async () => {
-      const perm = await Location.requestForegroundPermissionsAsync();
-      if (cancelled) return;
-      if (!perm.granted) {
-        setGps('denied');
-        return;
-      }
-      setGps('searching');
-      const s = await Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 },
-        (loc) => {
-          const accuracy = loc.coords.accuracy;
-          setGpsAccuracy(accuracy);
-          setGps(accuracy != null && accuracy > MAX_ACCURACY_M ? 'weak' : 'good');
-          setTrip((t) =>
-            t
-              ? addLocation(t, {
-                  latitude: loc.coords.latitude,
-                  longitude: loc.coords.longitude,
-                  accuracy,
-                  timestamp: loc.timestamp,
-                  speed: loc.coords.speed,
-                })
-              : t,
-          );
-        },
-        () => setGps('weak'),
-      );
-      if (cancelled) s.remove();
-      else sub = s;
-    })().catch(() => setGps('weak'));
+    startTracking({ title: t('fgTitle'), body: t('fgBody') })
+      .then((m) => !cancelled && setMode(m))
+      .catch(() => !cancelled && setMode('foreground'));
+
+    // Coming back from the background: pick up whatever the task recorded.
+    const appState = AppState.addEventListener('change', (s) => {
+      if (s === 'active') setTrip(loadActiveTrip());
+    });
 
     return () => {
       cancelled = true;
-      sub?.remove();
       clearInterval(timer);
+      appState.remove();
       deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
-      setGps('off');
-      setGpsAccuracy(null);
     };
-  }, [running, setTrip]);
+    // Re-running on language change would restart tracking; the notification text can wait.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running]);
 
   const start = useCallback(async () => {
-    // Ask up front so a refusal is reported before the meter starts.
-    const perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) {
-      setGps('denied');
+    const ts = Date.now();
+    const fresh = startTrip(loadTariff(), ts);
+    saveActiveTrip(fresh);
+    const m = await startTracking({ title: t('fgTitle'), body: t('fgBody') }).catch(() => 'foreground' as const);
+    if (m === 'denied') {
+      saveActiveTrip(null);
+      setMode('denied');
       return false;
     }
-    const t = Date.now();
-    setNow(t);
-    setTrip(() => startTrip(loadTariff(), t));
+    setMode(m);
+    setNow(ts);
+    setTrip(fresh);
     return true;
-  }, [setTrip]);
+  }, [t]);
 
   const finish = useCallback(async (): Promise<Trip | null> => {
-    if (!trip) return null;
-    const done = finishTrip(trip, Date.now());
+    const cur = loadActiveTrip();
+    if (!cur) return null;
+    await stopTracking().catch(() => {});
+    const done = finishTrip(cur, Date.now());
     await saveTrip(done);
-    setTrip(() => null);
+    saveActiveTrip(null);
+    setTrip(null);
+    setMode(null);
     syncTrips().catch(() => {});
     return done;
-  }, [trip, setTrip]);
+  }, []);
+
+  let gps: GpsStatus = 'off';
+  const accuracy = getLastAccuracy();
+  if (mode === 'denied') gps = 'denied';
+  else if (trip) {
+    if (trip.lastFixAt == null) gps = 'searching';
+    else if (now - trip.lastFixAt > FIX_STALE_MS || (accuracy != null && accuracy > MAX_ACCURACY_M)) gps = 'weak';
+    else gps = 'good';
+  }
 
   return {
     trip,
     gps,
-    gpsAccuracy,
+    gpsAccuracy: accuracy,
+    background: mode === 'background',
     isWaiting: trip?.waitingSince != null,
     elapsedSec: trip ? Math.floor((now - trip.startedAt) / 1000) : 0,
     waitingSec: trip ? waitingSeconds(trip, now) : 0,

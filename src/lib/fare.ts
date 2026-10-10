@@ -12,6 +12,11 @@ export type Tariff = {
   /** Total is rounded to the nearest multiple of this (1 = no rounding). */
   roundTo: number;
   currency: string;
+  /** Extra % on hires that start at night; 0 turns the night rate off. */
+  nightPercent: number;
+  /** Local hours, 0–23. The window may wrap past midnight (22 → 5). */
+  nightStartHour: number;
+  nightEndHour: number;
 };
 
 export const DEFAULT_TARIFF: Tariff = {
@@ -23,16 +28,33 @@ export const DEFAULT_TARIFF: Tariff = {
   autoWaitAfterSec: 5,
   roundTo: 10,
   currency: 'Rs',
+  nightPercent: 0,
+  nightStartHour: 22,
+  nightEndHour: 5,
 };
 
 export type FareBreakdown = {
   baseFare: number;
   distanceCharge: number;
   waitingCharge: number;
+  nightCharge: number;
   total: number;
 };
 
-export function calculateFare(tariff: Tariff, distanceM: number, waitingSec: number): FareBreakdown {
+/** Whether a hire starting at `startedAt` (ms) is charged the night rate. */
+export function isNightHire(tariff: Tariff, startedAt: number): boolean {
+  if (tariff.nightPercent <= 0 || tariff.nightStartHour === tariff.nightEndHour) return false;
+  const h = new Date(startedAt).getHours();
+  const { nightStartHour: from, nightEndHour: to } = tariff;
+  return from < to ? h >= from && h < to : h >= from || h < to;
+}
+
+export function calculateFare(
+  tariff: Tariff,
+  distanceM: number,
+  waitingSec: number,
+  startedAt?: number,
+): FareBreakdown {
   const km = Math.max(0, distanceM) / 1000;
   const extraKm = Math.max(0, km - tariff.baseDistanceKm);
   const distanceCharge = extraKm * tariff.perKm;
@@ -41,14 +63,18 @@ export function calculateFare(tariff: Tariff, distanceM: number, waitingSec: num
   const billableSec = Math.max(0, waitingSec - tariff.freeWaitingMinutes * 60);
   const waitingCharge = Math.ceil(billableSec / 60) * tariff.waitingPerMinute;
 
-  const raw = tariff.baseFare + distanceCharge + waitingCharge;
+  const subtotal = tariff.baseFare + distanceCharge + waitingCharge;
+  const night = startedAt != null && isNightHire(tariff, startedAt);
+  const nightCharge = night ? (subtotal * tariff.nightPercent) / 100 : 0;
+
   const step = tariff.roundTo > 0 ? tariff.roundTo : 1;
-  const total = Math.round(raw / step) * step;
+  const total = Math.round((subtotal + nightCharge) / step) * step;
 
   return {
     baseFare: tariff.baseFare,
     distanceCharge: round2(distanceCharge),
     waitingCharge: round2(waitingCharge),
+    nightCharge: round2(nightCharge),
     total,
   };
 }

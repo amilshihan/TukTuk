@@ -5,12 +5,14 @@ import { router, useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useMeter, type GpsStatus } from '@/hooks/useMeter';
-import { formatDuration, formatKm, formatMoney, type Tariff } from '@/lib/fare';
+import { formatDuration, formatKm, formatMoney, isNightHire, type Tariff } from '@/lib/fare';
+import { useI18n, type StringKey } from '@/lib/i18n';
 import { loadTariff, summarySince, type DaySummary } from '@/lib/storage';
 import { FareRows } from '@/components/FareRows';
 import { colors, radius } from '@/theme';
 
 export default function MeterScreen() {
+  const { t } = useI18n();
   const meter = useMeter();
   const { trip, fare } = meter;
 
@@ -18,23 +20,19 @@ export default function MeterScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const ok = await meter.start();
     if (!ok) {
-      Alert.alert(
-        'Location needed',
-        'The meter measures distance with GPS. Please allow location access for Tuk Tuk Meter.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open settings', onPress: () => Linking.openSettings() },
-        ],
-      );
+      Alert.alert(t('locationNeeded'), t('locationNeededBody'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('openSettings'), onPress: () => Linking.openSettings() },
+      ]);
     }
   };
 
   const onEnd = () => {
     if (!trip || !fare) return;
-    Alert.alert('End hire?', `Fare: ${formatMoney(fare.total, trip.tariff.currency)}`, [
-      { text: 'Keep running', style: 'cancel' },
+    Alert.alert(t('endHireQ'), t('fareIs', { fare: formatMoney(fare.total, trip.tariff.currency) }), [
+      { text: t('keepRunning'), style: 'cancel' },
       {
-        text: 'End hire',
+        text: t('endHire'),
         style: 'destructive',
         onPress: async () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -55,20 +53,22 @@ export default function MeterScreen() {
       {trip && fare ? (
         <>
           <View style={styles.fareBox}>
-            <Text style={styles.fareLabel}>{meter.isWaiting ? 'WAITING' : 'HIRED'}</Text>
+            <Text style={styles.fareLabel}>{meter.isWaiting ? t('waiting') : t('hired')}</Text>
             <Text style={styles.fare} adjustsFontSizeToFit numberOfLines={1}>
               {formatMoney(fare.total, trip.tariff.currency)}
             </Text>
+            {isNightHire(trip.tariff, trip.startedAt) ? (
+              <View style={styles.nightBadge}>
+                <Ionicons name="moon" size={14} color={colors.accent} />
+                <Text style={styles.nightText}>{t('nightActive', { p: trip.tariff.nightPercent })}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.stats}>
-            <Stat label="Distance" value={formatKm(trip.distanceM)} unit="km" />
-            <Stat label="Trip time" value={formatDuration(meter.elapsedSec)} />
-            <Stat
-              label="Waiting"
-              value={formatDuration(meter.waitingSec)}
-              highlight={meter.isWaiting}
-            />
+            <Stat label={t('distance')} value={formatKm(trip.distanceM)} unit="km" />
+            <Stat label={t('tripTime')} value={formatDuration(meter.elapsedSec)} />
+            <Stat label={t('waitingTime')} value={formatDuration(meter.waitingSec)} highlight={meter.isWaiting} />
           </View>
 
           <View style={styles.breakdown}>
@@ -82,9 +82,7 @@ export default function MeterScreen() {
               color={meter.isWaiting ? colors.wait : colors.good}
             />
             <Text style={styles.modeText}>
-              {meter.isWaiting
-                ? 'Stopped: waiting charge running'
-                : `Moving: waiting starts after ${trip.tariff.autoWaitAfterSec}s stopped`}
+              {meter.isWaiting ? t('modeWaiting') : t('modeMoving', { s: trip.tariff.autoWaitAfterSec })}
             </Text>
           </View>
 
@@ -94,7 +92,7 @@ export default function MeterScreen() {
               style={({ pressed }) => [styles.button, styles.stopButton, pressed && styles.pressed]}
             >
               <Ionicons name="stop" size={26} color={colors.text} />
-              <Text style={styles.buttonText}>END HIRE</Text>
+              <Text style={styles.buttonText}>{t('endHire')}</Text>
             </Pressable>
           </View>
         </>
@@ -106,6 +104,7 @@ export default function MeterScreen() {
 }
 
 function IdleView({ onStart }: { onStart: () => void }) {
+  const { t } = useI18n();
   const [today, setToday] = useState<DaySummary | null>(null);
   const [tariff, setTariff] = useState<Tariff>(loadTariff);
   const { currency } = tariff;
@@ -123,11 +122,11 @@ function IdleView({ onStart }: { onStart: () => void }) {
   return (
     <View style={styles.idle}>
       <View style={styles.todayCard}>
-        <Text style={styles.cardTitle}>Today</Text>
+        <Text style={styles.cardTitle}>{t('today')}</Text>
         <View style={styles.stats}>
-          <Stat label="Earnings" value={formatMoney(today?.earnings ?? 0, currency)} />
-          <Stat label="Trips" value={String(today?.trips ?? 0)} />
-          <Stat label="Distance" value={formatKm(today?.distanceM ?? 0)} unit="km" />
+          <Stat label={t('earnings')} value={formatMoney(today?.earnings ?? 0, currency)} />
+          <Stat label={t('trips')} value={String(today?.trips ?? 0)} />
+          <Stat label={t('distance')} value={formatKm(today?.distanceM ?? 0)} unit="km" />
         </View>
       </View>
 
@@ -135,18 +134,29 @@ function IdleView({ onStart }: { onStart: () => void }) {
         onPress={onStart}
         style={({ pressed }) => [styles.startButton, pressed && styles.pressed]}
         accessibilityRole="button"
-        accessibilityLabel="Start hire"
+        accessibilityLabel={t('startHire')}
       >
         <Ionicons name="play" size={56} color={colors.accentText} />
-        <Text style={styles.startText}>START HIRE</Text>
+        <Text style={styles.startText} numberOfLines={2} adjustsFontSizeToFit>
+          {t('startHire')}
+        </Text>
       </Pressable>
 
       <Pressable onPress={() => router.push('/settings')}>
         <Text style={styles.tariffLine}>
-          {formatMoney(tariff.baseFare, currency)} first {tariff.baseDistanceKm} km · {tariff.perKm}/km after ·{' '}
-          {tariff.waitingPerMinute}/min waiting
+          {t('tariffLine', {
+            base: formatMoney(tariff.baseFare, currency),
+            km: tariff.baseDistanceKm,
+            perKm: tariff.perKm,
+            wait: tariff.waitingPerMinute,
+          })}
         </Text>
-        <Text style={styles.tariffEdit}>Change rates</Text>
+        {tariff.nightPercent > 0 ? (
+          <Text style={styles.tariffLine}>
+            {t('nightLine', { p: tariff.nightPercent, from: tariff.nightStartHour, to: tariff.nightEndHour })}
+          </Text>
+        ) : null}
+        <Text style={styles.tariffEdit}>{t('changeRates')}</Text>
       </Pressable>
     </View>
   );
@@ -155,7 +165,9 @@ function IdleView({ onStart }: { onStart: () => void }) {
 function Stat({ label, value, unit, highlight }: { label: string; value: string; unit?: string; highlight?: boolean }) {
   return (
     <View style={styles.stat}>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statLabel} numberOfLines={1}>
+        {label}
+      </Text>
       <Text style={[styles.statValue, highlight && { color: colors.wait }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
         {unit ? <Text style={styles.statUnit}> {unit}</Text> : null}
@@ -164,22 +176,23 @@ function Stat({ label, value, unit, highlight }: { label: string; value: string;
   );
 }
 
-const GPS_LABEL: Record<GpsStatus, { text: string; color: string }> = {
-  off: { text: 'GPS off', color: colors.textMuted },
-  searching: { text: 'Finding GPS…', color: colors.warn },
-  good: { text: 'GPS', color: colors.good },
-  weak: { text: 'Weak GPS', color: colors.warn },
-  denied: { text: 'No location access', color: colors.bad },
+const GPS_LABEL: Record<GpsStatus, { key: StringKey; color: string }> = {
+  off: { key: 'gpsOff', color: colors.textMuted },
+  searching: { key: 'gpsSearching', color: colors.warn },
+  good: { key: 'gps', color: colors.good },
+  weak: { key: 'gpsWeak', color: colors.warn },
+  denied: { key: 'gpsDenied', color: colors.bad },
 };
 
 function GpsChip({ status, accuracy }: { status: GpsStatus; accuracy: number | null }) {
-  const { text, color } = GPS_LABEL[status];
+  const { t } = useI18n();
+  const { key, color } = GPS_LABEL[status];
   const suffix = status === 'good' && accuracy != null ? ` ±${Math.round(accuracy)}m` : '';
   return (
     <View style={styles.chip}>
       <View style={[styles.dot, { backgroundColor: color }]} />
       <Text style={styles.chipText}>
-        {text}
+        {t(key)}
         {suffix}
       </Text>
     </View>
@@ -213,6 +226,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   fareLabel: { color: colors.textMuted, letterSpacing: 3, fontWeight: '700', fontSize: 13 },
+  nightBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  nightText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
   fare: {
     color: colors.accent,
     fontSize: 64,
@@ -270,7 +285,15 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 10,
   },
-  startText: { color: colors.accentText, fontSize: 24, fontWeight: '900', letterSpacing: 1, marginTop: 4 },
+  startText: {
+    color: colors.accentText,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
   tariffLine: { color: colors.textMuted, textAlign: 'center', fontSize: 13 },
   tariffEdit: { color: colors.accent, textAlign: 'center', fontSize: 13, marginTop: 4, fontWeight: '600' },
 });

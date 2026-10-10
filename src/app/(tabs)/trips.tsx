@@ -3,12 +3,14 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDuration, formatKm, formatMoney } from '@/lib/fare';
+import { useI18n, type Translate } from '@/lib/i18n';
 import { listTrips, type StoredTrip } from '@/lib/storage';
 import { syncTrips } from '@/lib/sync';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/theme';
 
 export default function TripsScreen() {
+  const { t } = useI18n();
   const [trips, setTrips] = useState<StoredTrip[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -39,12 +41,12 @@ export default function TripsScreen() {
       ListEmptyComponent={
         <View style={styles.empty}>
           <Ionicons name="car-outline" size={48} color={colors.textMuted} />
-          <Text style={styles.emptyText}>No trips yet. Finished hires will show up here.</Text>
+          <Text style={styles.emptyText}>{t('noTrips')}</Text>
         </View>
       }
       renderItem={({ item, index }) => {
-        const day = dayLabel(item.startedAt);
-        const showHeader = index === 0 || dayLabel(trips[index - 1].startedAt) !== day;
+        const day = dayLabel(item.startedAt, t);
+        const showHeader = index === 0 || dayLabel(trips[index - 1].startedAt, t) !== day;
         return (
           <>
             {showHeader ? <Text style={styles.day}>{day}</Text> : null}
@@ -58,7 +60,7 @@ export default function TripsScreen() {
                 </Text>
                 <Text style={styles.meta}>
                   {formatKm(item.distanceM)} km
-                  {item.waitingSec > 0 ? ` · waited ${formatDuration(item.waitingSec)}` : ''}
+                  {item.waitingSec > 0 ? ` · ${t('waited', { t: formatDuration(item.waitingSec) })}` : ''}
                 </Text>
               </View>
               <Text style={styles.total}>{formatMoney(item.fare.total, item.tariff.currency)}</Text>
@@ -77,13 +79,13 @@ export default function TripsScreen() {
   );
 }
 
-function dayLabel(ms: number): string {
+function dayLabel(ms: number, t: Translate): string {
   const d = new Date(ms);
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return 'Today';
-  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (d.toDateString() === today.toDateString()) return t('today');
+  if (d.toDateString() === yesterday.toDateString()) return t('yesterday');
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 

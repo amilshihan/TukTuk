@@ -1,55 +1,69 @@
 # Tuk Tuk Meter
 
-A taxi meter app for tuk tuk drivers. It measures distance with GPS, adds waiting time while the passenger is out shopping, and shows the fare live.
+A taxi meter app for tuk tuk drivers. It measures distance with GPS, charges waiting time automatically while the tuk tuk is stopped (for example while the passenger is shopping), and shows the fare live.
 
 ## Features
 
+- **Driver registration and login**: drivers register with their name, mobile number, address, NIC, tuk tuk registration number and driving licence number, then log in with mobile number + password. The details are stored in the `drivers` table for the operator's records. You must be logged in to use the meter.
 - **Live meter**: base fare for the first km, a per-km rate after that, and the total rounded to the nearest 10 (adjustable).
-- **Automatic waiting**: when the tuk tuk stands still for the number of seconds set in Settings (default 5), the waiting charge starts. When it moves again, waiting stops and the distance charge carries on. Waiting is charged per started minute, and you can set free minutes.
+- **Automatic waiting**: when the tuk tuk stands still for the number of seconds set in Settings (default 5), the waiting charge starts. When it moves again, even slowly in traffic, waiting stops and the distance charge carries on. Waiting is charged per started minute, and you can set free minutes.
+- **Night rate**: an optional % surcharge on hires that start inside a night window (for example 22:00–05:00).
+- **Background tracking** (installed app only): distance and waiting keep counting with the screen off or another app open. Android shows a "Tuk Tuk Meter is running" notification during a hire.
+- **Sinhala, Tamil and English**: switch on the login screen or in Settings.
+- **Receipt** with the route on a map. Share it as an image to WhatsApp or SMS.
 - **GPS filtering**: ignores jitter while parked, inaccurate fixes and impossible jumps.
 - **Crash safe**: the running hire is saved on every update. If the app is killed, the meter resumes when you reopen it.
-- **Screen stays on** during a hire.
-- **Receipt** for each trip, which you can share by SMS or WhatsApp.
-- **Trip history** grouped by day, with today's earnings on the home screen.
-- **Rates you can edit** in Settings (currency, base fare, per km, waiting per minute, rounding).
-- **Optional cloud backup** of trips to Supabase. Each driver signs in with email and only sees their own trips.
+- **Trip history** grouped by day, with today's earnings on the home screen, backed up to Supabase.
+- **Rates you can edit** in Settings.
+
+## Supabase setup (required)
+
+Driver accounts and trip backup live in Supabase.
+
+1. In the Supabase dashboard, open **SQL Editor → New query**, paste [`supabase/schema.sql`](supabase/schema.sql) and click **Run**.
+2. Open **Authentication → Sign In / Providers → Email**, turn **Confirm email** off, and save. Drivers log in with their mobile number, which the app maps to an internal login id. No emails or SMS are ever sent.
+3. Copy `.env.example` to `.env.local` and fill in the project URL and publishable key from **Project Settings → API Keys**.
+4. For APK builds, add the same two values as EAS environment variables (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) for the `preview` environment.
+
+To see your drivers: **Table Editor → drivers**, or **driver_summary** for each driver's trip count, total fares and km.
 
 ## Run it
 
 ```bash
 npm install
-npx expo start
+npx expo start --tunnel
 ```
 
-Scan the QR code with **Expo Go** on an Android phone.
+Scan the QR code with **Expo Go**. Background tracking doesn't work in Expo Go; it falls back to tracking only while the app is open.
 
-## Cloud backup (optional)
+Build an installable Android APK:
 
-1. Create a project at https://supabase.com.
-2. Open **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql).
-3. Copy `.env.example` to `.env.local`, then fill in the project URL and publishable key from **Project Settings → API**.
-4. Restart `npx expo start`.
-
-Without these keys the app works fully offline.
+```bash
+npx eas-cli@latest build -p android --profile preview
+```
 
 ## Development
 
 ```bash
-npm test           # fare and meter logic tests
+npm test           # fare, meter and phone logic tests
 npm run typecheck
 npx expo lint
 ```
 
 Code layout:
 
-- `src/app/`: screens (Expo Router)
-- `src/lib/fare.ts`: fare calculation
+- `src/app/`: screens (Expo Router). `login` and `register` are shown until the driver is signed in.
+- `src/lib/fare.ts`: fare calculation, including the night rate
 - `src/lib/geo.ts`: GPS distance and filtering
-- `src/lib/meter.ts`: meter state (start, location, waiting, finish)
+- `src/lib/meter.ts`: meter state (start, location, auto waiting, route, finish)
+- `src/lib/tracking.ts`: background / foreground location
+- `src/lib/auth.tsx`: driver registration and login
+- `src/lib/i18n.tsx`: English, Sinhala and Tamil text
 - `src/lib/storage.ts`: SQLite trip history and saved settings
 - `src/lib/sync.ts`: upload to Supabase
 
-## Known limitations
+## Notes
 
-- GPS only updates while the app is open. The screen is kept on during a hire, but if the driver switches apps, distance pauses and the meter catches up with a straight line when they come back. Background tracking needs a development build (`eas build`), not Expo Go.
-- The default rates (Rs 100 first km, Rs 85/km, Rs 5/min waiting) are placeholders. Set your own in Settings.
+- The default rates (Rs 100 first km, Rs 85/km, Rs 5/min waiting, no night rate) are placeholders. Set your own in Settings.
+- Route maps use CARTO's OpenStreetMap basemap, which is free for low volume (about 75,000 map views a month). Beyond that, or for commercial use at scale, get a CARTO or other tile-provider plan.
+- The Sinhala and Tamil text should be checked by a native speaker.

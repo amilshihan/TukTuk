@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,52 +11,72 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import type { Session } from '@supabase/supabase-js';
+import { LanguagePicker } from '@/components/Form';
+import { Row } from '@/components/FareRows';
+import { useAuth } from '@/lib/auth';
 import { calculateFare, DEFAULT_TARIFF, formatMoney, type Tariff } from '@/lib/fare';
-import { loadTariff, saveTariff } from '@/lib/storage';
-import { supabase } from '@/lib/supabase';
+import { useI18n, type StringKey } from '@/lib/i18n';
+import { formatMobile } from '@/lib/phone';
+import { loadActiveTrip, loadTariff, saveTariff } from '@/lib/storage';
 import { syncTrips } from '@/lib/sync';
 import { colors, radius } from '@/theme';
 
 type NumericKey = Exclude<keyof Tariff, 'currency'>;
+type Draft = Record<keyof Tariff, string>;
 
-const FIELDS: { key: NumericKey; label: string; hint: string }[] = [
-  { key: 'baseFare', label: 'Base fare', hint: 'Charged at the start of every hire' },
-  { key: 'baseDistanceKm', label: 'Km included in base fare', hint: 'Usually 1 km' },
-  { key: 'perKm', label: 'Rate per km', hint: 'After the included km' },
-  { key: 'waitingPerMinute', label: 'Waiting rate per minute', hint: 'While the meter is in waiting mode' },
-  { key: 'freeWaitingMinutes', label: 'Free waiting minutes', hint: 'Not charged per hire' },
-  {
-    key: 'autoWaitAfterSec',
-    label: 'Start waiting after (seconds)',
-    hint: 'Waiting starts when the tuk tuk stays still this long and stops when it moves',
-  },
-  { key: 'roundTo', label: 'Round total to nearest', hint: '1 = no rounding, 10 = nearest 10' },
+const RATE_FIELDS: { key: NumericKey; label: StringKey; hint: StringKey }[] = [
+  { key: 'baseFare', label: 'baseFareL', hint: 'baseFareH' },
+  { key: 'baseDistanceKm', label: 'baseKmL', hint: 'baseKmH' },
+  { key: 'perKm', label: 'perKmL', hint: 'perKmH' },
+  { key: 'waitingPerMinute', label: 'waitRateL', hint: 'waitRateH' },
+  { key: 'freeWaitingMinutes', label: 'freeWaitL', hint: 'freeWaitH' },
+  { key: 'autoWaitAfterSec', label: 'autoWaitL', hint: 'autoWaitH' },
+  { key: 'roundTo', label: 'roundL', hint: 'roundH' },
+];
+
+const NIGHT_FIELDS: { key: NumericKey; label: StringKey; hint: StringKey }[] = [
+  { key: 'nightPercent', label: 'nightPctL', hint: 'nightPctH' },
+  { key: 'nightStartHour', label: 'nightStartL', hint: 'nightStartH' },
+  { key: 'nightEndHour', label: 'nightEndL', hint: 'nightEndH' },
 ];
 
 export default function SettingsScreen() {
-  const [draft, setDraft] = useState<Record<keyof Tariff, string>>(() => toDraft(loadTariff()));
+  const { t } = useI18n();
+  const [draft, setDraft] = useState<Draft>(() => toDraft(loadTariff()));
 
   const parsed = fromDraft(draft);
   const example = parsed ? calculateFare(parsed, 5000, 10 * 60) : null;
 
   const onSave = () => {
     if (!parsed) {
-      Alert.alert('Check the rates', 'Every rate must be a number of 0 or more, and waiting must start after at least 1 second.');
+      Alert.alert(t('checkRates'), t('checkRatesBody'));
       return;
     }
     saveTariff(parsed);
-    Alert.alert('Saved', 'New rates apply from the next hire.');
+    Alert.alert(t('saved'), t('savedBody'));
   };
 
-  const onReset = () => setDraft(toDraft(DEFAULT_TARIFF));
+  const numberField = (f: { key: NumericKey; label: StringKey; hint: StringKey }) => (
+    <Field key={f.key} label={t(f.label)} hint={t(f.hint)}>
+      <TextInput
+        style={styles.input}
+        value={draft[f.key]}
+        onChangeText={(v) => setDraft({ ...draft, [f.key]: v })}
+        keyboardType="decimal-pad"
+        selectTextOnFocus
+      />
+    </Field>
+  );
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.section}>Fare rates</Text>
+        <Text style={styles.section}>{t('language')}</Text>
+        <LanguagePicker />
+
+        <Text style={styles.section}>{t('fareRates')}</Text>
         <View style={styles.card}>
-          <Field label="Currency" hint="Shown before amounts">
+          <Field label={t('currency')} hint={t('currencyHint')}>
             <TextInput
               style={styles.input}
               value={draft.currency}
@@ -65,33 +85,24 @@ export default function SettingsScreen() {
               maxLength={6}
             />
           </Field>
-          {FIELDS.map((f) => (
-            <Field key={f.key} label={f.label} hint={f.hint}>
-              <TextInput
-                style={styles.input}
-                value={draft[f.key]}
-                onChangeText={(v) => setDraft({ ...draft, [f.key]: v })}
-                keyboardType="decimal-pad"
-                selectTextOnFocus
-              />
-            </Field>
-          ))}
+          {RATE_FIELDS.map(numberField)}
         </View>
 
+        <Text style={styles.section}>{t('nightRate')}</Text>
+        <View style={styles.card}>{NIGHT_FIELDS.map(numberField)}</View>
+
         {parsed && example ? (
-          <Text style={styles.example}>
-            Example: 5 km with 10 min waiting = {formatMoney(example.total, parsed.currency)}
-          </Text>
+          <Text style={styles.example}>{t('example', { fare: formatMoney(example.total, parsed.currency) })}</Text>
         ) : null}
 
         <Pressable style={[styles.button, styles.primary]} onPress={onSave}>
-          <Text style={styles.primaryText}>SAVE RATES</Text>
+          <Text style={styles.primaryText}>{t('saveRates')}</Text>
         </Pressable>
-        <Pressable style={styles.link} onPress={onReset}>
-          <Text style={styles.linkText}>Reset to defaults</Text>
+        <Pressable style={styles.link} onPress={() => setDraft(toDraft(DEFAULT_TARIFF))}>
+          <Text style={styles.linkText}>{t('resetDefaults')}</Text>
         </Pressable>
 
-        <Text style={styles.section}>Cloud backup</Text>
+        <Text style={styles.section}>{t('account')}</Text>
         <AccountSection />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -99,117 +110,52 @@ export default function SettingsScreen() {
 }
 
 function AccountSection() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { t } = useI18n();
+  const { driver, session, signOut } = useAuth();
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  if (!supabase) {
-    return (
-      <View style={styles.card}>
-        <Text style={styles.body}>
-          Trips are saved on this phone. Cloud backup is not set up in this build. See the README to connect
-          Supabase.
-        </Text>
-      </View>
-    );
-  }
-  const client = supabase;
-
-  const run = async (fn: () => Promise<string | null>) => {
+  const onBackup = async () => {
     setBusy(true);
     try {
-      const msg = await fn();
-      if (msg) Alert.alert(msg);
+      const r = await syncTrips();
+      if ('error' in r) Alert.alert(t('syncFailed', { e: r.error }));
+      else if ('uploaded' in r) Alert.alert(r.uploaded ? t('backedUp', { n: r.uploaded }) : t('allBackedUp'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (session) {
-    return (
-      <View style={styles.card}>
-        <Text style={styles.body}>Signed in as {session.user.email}</Text>
-        <Pressable
-          style={[styles.button, styles.secondary]}
-          disabled={busy}
-          onPress={() =>
-            run(async () => {
-              const r = await syncTrips();
-              if ('error' in r) return `Sync failed: ${r.error}`;
-              if ('uploaded' in r) return r.uploaded ? `Backed up ${r.uploaded} trip(s)` : 'All trips are backed up';
-              return null;
-            })
-          }
-        >
-          {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.secondaryText}>Back up now</Text>}
-        </Pressable>
-        <Pressable style={styles.link} onPress={() => client.auth.signOut()}>
-          <Text style={[styles.linkText, { color: colors.bad }]}>Sign out</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const onSignOut = () => {
+    // Signing out mid-hire would hide the running meter behind the login screen.
+    if (loadActiveTrip()) {
+      Alert.alert(t('endHireQ'));
+      return;
+    }
+    Alert.alert(t('signOutQ'), undefined, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('signOut'), style: 'destructive', onPress: () => signOut() },
+    ]);
+  };
 
-  const valid = email.includes('@') && password.length >= 6;
   return (
     <View style={styles.card}>
-      <Text style={styles.body}>Sign in to back up your trips and see them on another phone.</Text>
-      <TextInput
-        style={[styles.input, styles.wide]}
-        placeholder="Email"
-        placeholderTextColor={colors.textMuted}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-      />
-      <TextInput
-        style={[styles.input, styles.wide]}
-        placeholder="Password (6+ characters)"
-        placeholderTextColor={colors.textMuted}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="password"
-      />
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Pressable
-          style={[styles.button, styles.primary, { flex: 1 }, !valid && styles.disabled]}
-          disabled={!valid || busy}
-          onPress={() =>
-            run(async () => {
-              const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
-              if (error) return error.message;
-              syncTrips().catch(() => {});
-              return null;
-            })
-          }
-        >
-          {busy ? <ActivityIndicator color={colors.accentText} /> : <Text style={styles.primaryText}>SIGN IN</Text>}
-        </Pressable>
-        <Pressable
-          style={[styles.button, styles.secondary, { flex: 1 }, !valid && styles.disabled]}
-          disabled={!valid || busy}
-          onPress={() =>
-            run(async () => {
-              const { data, error } = await client.auth.signUp({ email: email.trim(), password });
-              if (error) return error.message;
-              return data.session ? null : 'Check your email to confirm the account, then sign in.';
-            })
-          }
-        >
-          <Text style={styles.secondaryText}>Create account</Text>
-        </Pressable>
-      </View>
+      {driver ? (
+        <View style={{ gap: 6 }}>
+          <Text style={styles.driverName}>{driver.full_name}</Text>
+          <Row label={t('mobile')} value={formatMobile(driver.mobile)} />
+          <Row label={t('vehicleNo')} value={driver.vehicle_no} />
+          <Row label={t('nic')} value={driver.nic} />
+          <Row label={t('licenceNo')} value={driver.licence_no} />
+        </View>
+      ) : session ? (
+        <ActivityIndicator color={colors.accent} />
+      ) : null}
+      <Pressable style={[styles.button, styles.secondary]} disabled={busy} onPress={onBackup}>
+        {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.secondaryText}>{t('backupNow')}</Text>}
+      </Pressable>
+      <Pressable style={styles.link} onPress={onSignOut}>
+        <Text style={[styles.linkText, { color: colors.bad }]}>{t('signOut')}</Text>
+      </Pressable>
     </View>
   );
 }
@@ -226,28 +172,22 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
   );
 }
 
-function toDraft(t: Tariff): Record<keyof Tariff, string> {
-  return {
-    currency: t.currency,
-    baseFare: String(t.baseFare),
-    baseDistanceKm: String(t.baseDistanceKm),
-    perKm: String(t.perKm),
-    waitingPerMinute: String(t.waitingPerMinute),
-    freeWaitingMinutes: String(t.freeWaitingMinutes),
-    autoWaitAfterSec: String(t.autoWaitAfterSec),
-    roundTo: String(t.roundTo),
-  };
+function toDraft(t: Tariff): Draft {
+  return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, String(v)])) as Draft;
 }
 
-function fromDraft(d: Record<keyof Tariff, string>): Tariff | null {
+function fromDraft(d: Draft): Tariff | null {
   const out: Partial<Tariff> = { currency: d.currency.trim() || DEFAULT_TARIFF.currency };
-  for (const { key } of FIELDS) {
+  for (const { key } of [...RATE_FIELDS, ...NIGHT_FIELDS]) {
     const n = Number(d[key].replace(',', '.'));
     if (d[key].trim() === '' || !Number.isFinite(n) || n < 0) return null;
     out[key] = n;
   }
-  if ((out.autoWaitAfterSec ?? 0) < 1) return null;
-  return out as Tariff;
+  const t = out as Tariff;
+  if (t.autoWaitAfterSec < 1) return null;
+  const hourOk = (h: number) => Number.isInteger(h) && h <= 23;
+  if (!hourOk(t.nightStartHour) || !hourOk(t.nightEndHour)) return null;
+  return t;
 }
 
 const styles = StyleSheet.create({
@@ -271,15 +211,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontVariant: ['tabular-nums'],
   },
-  wide: { textAlign: 'left', minWidth: undefined },
   example: { color: colors.textMuted, textAlign: 'center' },
-  body: { color: colors.textMuted, fontSize: 14, lineHeight: 20 },
+  driverName: { color: colors.text, fontSize: 18, fontWeight: '700' },
   button: { height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   primary: { backgroundColor: colors.accent },
   primaryText: { color: colors.accentText, fontSize: 16, fontWeight: '900', letterSpacing: 1 },
   secondary: { backgroundColor: colors.surfaceRaised },
   secondaryText: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  disabled: { opacity: 0.4 },
   link: { alignItems: 'center', paddingVertical: 6 },
   linkText: { color: colors.accent, fontWeight: '600' },
 });

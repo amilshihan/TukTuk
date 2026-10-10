@@ -1,17 +1,22 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { formatMoney, type FareBreakdown, type Tariff } from '@/lib/fare';
+import { useI18n } from '@/lib/i18n';
 import { colors } from '@/theme';
 
 export function FareRows({ tariff, fare, showTotal }: { tariff: Tariff; fare: FareBreakdown; showTotal?: boolean }) {
+  const { t } = useI18n();
   const money = (n: number) => formatMoney(n, tariff.currency);
   return (
     <View style={styles.wrap}>
-      <Row label={`Base fare (first ${tariff.baseDistanceKm} km)`} value={money(fare.baseFare)} />
-      <Row label={`Distance @ ${tariff.perKm}/km`} value={money(fare.distanceCharge)} />
-      <Row label={`Waiting @ ${tariff.waitingPerMinute}/min`} value={money(fare.waitingCharge)} />
+      <Row label={t('baseFare', { km: tariff.baseDistanceKm })} value={money(fare.baseFare)} />
+      <Row label={t('distanceAt', { rate: tariff.perKm })} value={money(fare.distanceCharge)} />
+      <Row label={t('waitingAt', { rate: tariff.waitingPerMinute })} value={money(fare.waitingCharge)} />
+      {fare.nightCharge > 0 ? (
+        <Row label={t('nightSurcharge', { p: tariff.nightPercent })} value={money(fare.nightCharge)} />
+      ) : null}
       {showTotal ? (
         <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalLabel}>{t('total')}</Text>
           <Text style={styles.totalValue}>{money(fare.total)}</Text>
         </View>
       ) : null}

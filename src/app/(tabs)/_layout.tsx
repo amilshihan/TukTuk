@@ -1,8 +1,10 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useI18n } from '@/lib/i18n';
 import { colors } from '@/theme';
 
 export default function TabsLayout() {
+  const { t } = useI18n();
   return (
     <Tabs
       screenOptions={{
@@ -17,7 +19,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Meter',
+          title: t('tabMeter'),
           headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="speedometer" color={color} size={size} />,
         }}
@@ -25,14 +27,14 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="trips"
         options={{
-          title: 'Trips',
+          title: t('tabTrips'),
           tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
+          title: t('tabSettings'),
           tabBarIcon: ({ color, size }) => <Ionicons name="settings-sharp" color={color} size={size} />,
         }}
       />

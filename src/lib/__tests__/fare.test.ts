@@ -39,3 +39,21 @@ test('formatting helpers', () => {
   assert.equal(formatDuration(65), '01:05');
   assert.equal(formatDuration(3725), '1:02:05');
 });
+
+test('night rate applies to hires starting inside a window that wraps midnight', () => {
+  const t: Tariff = { ...exact, nightPercent: 20, nightStartHour: 22, nightEndHour: 5 };
+  const at = (h: number) => new Date(2026, 0, 1, h, 30).getTime();
+  // 100 base + 2 km * 85 = 270, +20% = 324
+  assert.equal(calculateFare(t, 3000, 0, at(23)).total, 324);
+  assert.equal(calculateFare(t, 3000, 0, at(23)).nightCharge, 54);
+  assert.equal(calculateFare(t, 3000, 0, at(2)).total, 324);
+  assert.equal(calculateFare(t, 3000, 0, at(5)).total, 270);
+  assert.equal(calculateFare(t, 3000, 0, at(12)).total, 270);
+});
+
+test('night rate is off at 0% and for a non-wrapping window outside its hours', () => {
+  assert.equal(calculateFare({ ...exact, nightPercent: 0 }, 3000, 0, new Date(2026, 0, 1, 23).getTime()).nightCharge, 0);
+  const t: Tariff = { ...exact, nightPercent: 50, nightStartHour: 1, nightEndHour: 4 };
+  assert.equal(calculateFare(t, 0, 0, new Date(2026, 0, 1, 2).getTime()).total, 150);
+  assert.equal(calculateFare(t, 0, 0, new Date(2026, 0, 1, 4).getTime()).total, 100);
+});

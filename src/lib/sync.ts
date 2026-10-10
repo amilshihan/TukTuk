@@ -23,9 +23,11 @@ export async function syncTrips(): Promise<SyncResult> {
     base_fare: t.fare.baseFare,
     distance_charge: t.fare.distanceCharge,
     waiting_charge: t.fare.waitingCharge,
+    night_charge: t.fare.nightCharge,
     total: t.fare.total,
     currency: t.tariff.currency,
     tariff: t.tariff,
+    route: t.route,
   }));
 
   const { error } = await supabase.from('trips').upsert(rows, { onConflict: 'id' });

@@ -16,7 +16,17 @@ export type ActiveTrip = {
   lastMoveAt: number;
   /** When the last usable GPS fix arrived; waiting only starts while GPS is live. */
   lastFixAt: number | null;
+  /** Accepted points, for drawing the route on the receipt. */
+  route: RoutePoint[];
 };
+
+/** [latitude, longitude] rounded to ~1 m to keep the saved trip small. */
+export type RoutePoint = [number, number];
+
+const toRoutePoint = (p: GeoPoint): RoutePoint => [
+  Math.round(p.latitude * 1e5) / 1e5,
+  Math.round(p.longitude * 1e5) / 1e5,
+];
 
 /** Without a usable fix for this long we can't tell parked from moving, so leave the mode as is. */
 export const FIX_STALE_MS = 10_000;
@@ -29,6 +39,7 @@ export type Trip = {
   waitingSec: number;
   tariff: Tariff;
   fare: FareBreakdown;
+  route: RoutePoint[];
 };
 
 export function newId(): string {
@@ -50,6 +61,7 @@ export function startTrip(tariff: Tariff, now: number): ActiveTrip {
     lastPoint: null,
     lastMoveAt: now,
     lastFixAt: null,
+    route: [],
   };
 }
 
@@ -70,7 +82,9 @@ export function addLocation(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
   }
 
   // The very first fix only sets the anchor; it isn't movement.
-  if (trip.lastPoint == null) return { ...trip, lastPoint: point, lastFixAt: point.timestamp };
+  if (trip.lastPoint == null) {
+    return { ...trip, lastPoint: point, lastFixAt: point.timestamp, route: [toRoutePoint(point)] };
+  }
 
   const moved = setWaiting(trip, false, point.timestamp);
   return {
@@ -79,6 +93,7 @@ export function addLocation(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
     lastPoint: point,
     lastMoveAt: point.timestamp,
     lastFixAt: point.timestamp,
+    route: [...trip.route, toRoutePoint(point)],
   };
 }
 
@@ -105,7 +120,7 @@ export function waitingSeconds(trip: ActiveTrip, now: number): number {
 }
 
 export function currentFare(trip: ActiveTrip, now: number): FareBreakdown {
-  return calculateFare(trip.tariff, trip.distanceM, waitingSeconds(trip, now));
+  return calculateFare(trip.tariff, trip.distanceM, waitingSeconds(trip, now), trip.startedAt);
 }
 
 export function finishTrip(trip: ActiveTrip, now: number): Trip {
@@ -117,6 +132,7 @@ export function finishTrip(trip: ActiveTrip, now: number): Trip {
     distanceM: Math.round(trip.distanceM),
     waitingSec,
     tariff: trip.tariff,
-    fare: calculateFare(trip.tariff, trip.distanceM, waitingSec),
+    fare: calculateFare(trip.tariff, trip.distanceM, waitingSec, trip.startedAt),
+    route: trip.route,
   };
 }

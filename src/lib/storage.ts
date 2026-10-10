@@ -24,7 +24,11 @@ type TripRow = { data: string; synced: number };
 
 export type StoredTrip = Trip & { synced: boolean };
 
-const fromRow = (r: TripRow): StoredTrip => ({ ...(JSON.parse(r.data) as Trip), synced: r.synced === 1 });
+const fromRow = (r: TripRow): StoredTrip => {
+  const t = JSON.parse(r.data) as Trip;
+  // Trips saved by older versions lack the route and night charge.
+  return { ...t, route: t.route ?? [], fare: { ...t.fare, nightCharge: t.fare.nightCharge ?? 0 }, synced: r.synced === 1 };
+};
 
 export async function saveTrip(trip: Trip): Promise<void> {
   await db.runAsync(
@@ -109,6 +113,7 @@ export function loadActiveTrip(): ActiveTrip | null {
       tariff: { ...DEFAULT_TARIFF, ...t.tariff },
       lastMoveAt: t.lastMoveAt ?? Date.now(),
       lastFixAt: t.lastFixAt ?? null,
+      route: t.route ?? [],
     };
   } catch {
     return null;
