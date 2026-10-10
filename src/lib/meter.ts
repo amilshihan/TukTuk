@@ -1,5 +1,5 @@
 import { calculateFare, type FareBreakdown, type Tariff } from './fare.ts';
-import { evaluateStep, type GeoPoint } from './geo.ts';
+import { evaluateStep, isRolling, type GeoPoint } from './geo.ts';
 
 /** A running hire. Plain JSON so it can be persisted and restored after a crash. */
 export type ActiveTrip = {
@@ -60,7 +60,14 @@ export function startTrip(tariff: Tariff, now: number): ActiveTrip {
 export function addLocation(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
   const step = evaluateStep(trip.lastPoint, point);
   if (step.kind === 'reject') return trip;
-  if (step.kind === 'jitter') return { ...trip, lastFixAt: point.timestamp };
+  if (step.kind === 'jitter') {
+    // Creeping in traffic: too little distance to count yet, but the speed
+    // reading shows it is rolling, so it is not waiting.
+    if (trip.lastPoint != null && isRolling(point)) {
+      return { ...setWaiting(trip, false, point.timestamp), lastMoveAt: point.timestamp, lastFixAt: point.timestamp };
+    }
+    return { ...trip, lastFixAt: point.timestamp };
+  }
 
   // The very first fix only sets the anchor; it isn't movement.
   if (trip.lastPoint == null) return { ...trip, lastPoint: point, lastFixAt: point.timestamp };

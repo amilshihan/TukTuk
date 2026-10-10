@@ -31,6 +31,15 @@ export const MAX_SPEED_MPS = 30;
 export const STILL_SPEED_MPS = 0.8;
 /** ...unless the position has clearly shifted by more than this. */
 export const STILL_MAX_DRIFT_M = 15;
+/**
+ * Reported speed at or above ~3.6 km/h means the tuk tuk is rolling, even when
+ * it has only crept a few metres (slow traffic). Parked GPS reports well below this.
+ */
+export const MOVING_SPEED_MPS = 1.0;
+
+export function isRolling(point: GeoPoint): boolean {
+  return point.speed != null && point.speed >= MOVING_SPEED_MPS;
+}
 
 export type StepResult =
   | { kind: 'accept'; distanceM: number }

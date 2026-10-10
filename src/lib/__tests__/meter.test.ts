@@ -106,3 +106,27 @@ test('no waiting is charged while there is no GPS fix', () => {
   for (let s = 0; s <= 60; s++) trip = tick(trip, s * 1000);
   assert.equal(waitingSeconds(trip, 60_000), 0);
 });
+
+test('creeping in slow traffic ends waiting straight away and keeps it off', () => {
+  let trip = startTrip({ ...DEFAULT_TARIFF, autoWaitAfterSec: 5 }, 0);
+  trip = run(trip, 0, 20, () => 6.9); // waiting from 5 s
+  assert.notEqual(trip.waitingSince, null);
+  // Crawl at 1.5 m/s (~5 km/h) for 60 s: only ~1.5 m between fixes.
+  const step = 1.5 / 111_000;
+  for (let s = 21; s <= 80; s++) {
+    trip = addLocation(trip, { ...pt(6.9 + (s - 20) * step, s * 1000), speed: 1.5 });
+    trip = tick(trip, s * 1000);
+    assert.equal(trip.waitingSince, null, `waiting at ${s}s`);
+  }
+  assert.equal(waitingSeconds(trip, 80_000), 16); // only the 5 s -> 21 s stop
+  assert.ok(Math.abs(trip.distanceM - 90) < 10, `got ${trip.distanceM}`);
+});
+
+test('parked GPS speed noise does not end waiting', () => {
+  let trip = startTrip({ ...DEFAULT_TARIFF, autoWaitAfterSec: 5 }, 0);
+  for (let s = 0; s <= 60; s++) {
+    trip = addLocation(trip, { ...pt(6.9 + (s % 3) * 0.00002, s * 1000), speed: (s % 4) * 0.2 });
+    trip = tick(trip, s * 1000);
+  }
+  assert.equal(waitingSeconds(trip, 60_000), 55);
+});
