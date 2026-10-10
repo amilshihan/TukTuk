@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateFare, DEFAULT_TARIFF, formatDuration, formatMoney, type Tariff } from '../fare.ts';
+import { calculateFare, DEFAULT_TARIFF, estimateFare, formatDuration, formatMoney, type Tariff } from '../fare.ts';
 
 const exact: Tariff = { ...DEFAULT_TARIFF, roundTo: 1 };
 
@@ -56,4 +56,24 @@ test('night rate is off at 0% and for a non-wrapping window outside its hours', 
   const t: Tariff = { ...exact, nightPercent: 50, nightStartHour: 1, nightEndHour: 4 };
   assert.equal(calculateFare(t, 0, 0, new Date(2026, 0, 1, 2).getTime()).total, 150);
   assert.equal(calculateFare(t, 0, 0, new Date(2026, 0, 1, 4).getTime()).total, 100);
+});
+
+test('estimate gives a friendly low-high range for a planned route', () => {
+  const noon = new Date(2026, 0, 1, 12).getTime();
+  // 10 km, 25 min free-flow: low = 100 + 9 x 85 = 865; high adds 10% distance and 15 min of jams.
+  assert.deepEqual(estimateFare(DEFAULT_TARIFF, 10_000, 25 * 60, noon), { low: 850, high: 1050 });
+});
+
+test('estimate for a short hop never goes below the base fare and keeps a gap', () => {
+  const noon = new Date(2026, 0, 1, 12).getTime();
+  const r = estimateFare(DEFAULT_TARIFF, 400, 60, noon);
+  assert.equal(r.low, 100);
+  assert.ok(r.high > r.low);
+});
+
+test('estimate includes the night rate', () => {
+  const t: Tariff = { ...DEFAULT_TARIFF, nightPercent: 20, nightStartHour: 22, nightEndHour: 5 };
+  const day = estimateFare(t, 10_000, 25 * 60, new Date(2026, 0, 1, 12).getTime());
+  const night = estimateFare(t, 10_000, 25 * 60, new Date(2026, 0, 1, 23).getTime());
+  assert.ok(night.low > day.low && night.high > day.high, JSON.stringify({ day, night }));
 });

@@ -25,6 +25,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{
+          title: t('tabPlan'),
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => <Ionicons name="map" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="trips"
         options={{
           title: t('tabTrips'),

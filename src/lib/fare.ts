@@ -83,6 +83,37 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Extra road distance in heavy traffic (detours, missed turns), as a fraction of the route. */
+export const ESTIMATE_DETOUR = 0.1;
+/** In heavy traffic the tuk tuk stands still for roughly this share of the free-flow driving time. */
+export const ESTIMATE_TRAFFIC_STOP = 0.6;
+
+/**
+ * Fare range for a planned route before the hire starts.
+ * Low: the route driven with no waiting. High: a little extra distance and
+ * stop-and-go traffic billed as waiting. Real fares can go above this in
+ * extreme conditions (long jams, road closures, extra stops).
+ */
+export function estimateFare(
+  tariff: Tariff,
+  routeDistanceM: number,
+  routeDurationSec: number,
+  at: number,
+): { low: number; high: number } {
+  const low = calculateFare(tariff, routeDistanceM, 0, at).total;
+  const high = calculateFare(
+    tariff,
+    routeDistanceM * (1 + ESTIMATE_DETOUR),
+    routeDurationSec * ESTIMATE_TRAFFIC_STOP,
+    at,
+  ).total;
+  // Round outwards to friendly numbers: Rs 850 – 1,050 rather than Rs 865 – 1,025.
+  const step = high >= 500 ? 50 : 10;
+  const lo = Math.max(tariff.baseFare, Math.floor(low / step) * step);
+  const hi = Math.max(lo + step, Math.ceil(high / step) * step);
+  return { low: lo, high: hi };
+}
+
 export function formatMoney(amount: number, currency: string): string {
   const fixed = Number.isInteger(amount) ? amount.toFixed(0) : amount.toFixed(2);
   return `${currency} ${fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
