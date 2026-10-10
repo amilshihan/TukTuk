@@ -25,7 +25,13 @@ Driver accounts and trip backup live in Supabase.
 3. Copy `.env.example` to `.env.local` and fill in the project URL and publishable key from **Project Settings → API Keys**.
 4. For APK builds, add the same two values as EAS environment variables (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) for the `preview` environment.
 
-To see your drivers: **Table Editor → drivers**, or **driver_summary** for each driver's trip count, total fares and km.
+To see your records in **Table Editor**:
+
+- **trip_log**: every trip (newest first, Sri Lanka time) with the driver, tuk tuk no., km, duration, waiting time and stops, each charge, start and end addresses, and a Google Maps link. Running hires show as `in_progress` and are updated every minute.
+- **driver_summary**: each driver's details with trip count, total fares, total km and whether they're on a hire now.
+- **drivers** / **trips**: the raw tables. Completed trips can't be changed or deleted from the app.
+
+Re-run `supabase/schema.sql` after updating the app; it's safe to run again.
 
 ## Run it
 
