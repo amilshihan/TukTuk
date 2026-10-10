@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { LanguagePicker, PrimaryButton, TextField } from '@/components/Form';
 import { useAuth } from '@/lib/auth';
+import { biometricMobile, biometricsAvailable, disableBiometricLogin, unlockSavedLogin } from '@/lib/biometrics';
 import { useI18n, type StringKey } from '@/lib/i18n';
 import { normalizeMobile } from '@/lib/phone';
 import { colors } from '@/theme';
@@ -15,6 +17,36 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<StringKey | null>(null);
   const [busy, setBusy] = useState(false);
+  const [savedMobile, setSavedMobile] = useState<string | null>(null);
+
+  // If fingerprint / Face ID login is set up on this phone, fill in the number for them.
+  useEffect(() => {
+    (async () => {
+      const [m, ok] = await Promise.all([biometricMobile(), biometricsAvailable()]);
+      if (m && ok) {
+        setSavedMobile(m);
+        setMobile((cur) => cur || m.replace(/^94/, '0'));
+      }
+    })();
+  }, []);
+
+  const typed = normalizeMobile(mobile);
+  const canUseBiometrics = savedMobile != null && (mobile.trim() === '' || typed === savedMobile);
+
+  const onBiometricLogin = async () => {
+    setError(null);
+    const saved = await unlockSavedLogin(t('biometricPrompt'), t('cancel'));
+    if (!saved) return;
+    setBusy(true);
+    const err = await signIn(saved.mobile, saved.password);
+    setBusy(false);
+    if (err === 'loginFailed') {
+      // Password was changed since biometrics was turned on.
+      await disableBiometricLogin();
+      setSavedMobile(null);
+      setError('biometricExpired');
+    } else if (err) setError(err);
+  };
 
   const onLogin = async () => {
     const m = normalizeMobile(mobile);
@@ -61,6 +93,18 @@ export default function LoginScreen() {
 
           <PrimaryButton title={t('login')} onPress={onLogin} busy={busy} />
 
+          {canUseBiometrics ? (
+            <Pressable
+              style={({ pressed }) => [styles.bioButton, pressed && { opacity: 0.8 }]}
+              onPress={onBiometricLogin}
+              disabled={busy}
+              accessibilityRole="button"
+            >
+              <Ionicons name="finger-print" size={28} color={colors.accent} />
+              <Text style={styles.bioText}>{t('loginWithBiometric')}</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable style={styles.link} onPress={() => router.push('/register')}>
             <Text style={styles.linkText}>{t('noAccount')}</Text>
           </Pressable>
@@ -78,6 +122,17 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 26, fontWeight: '800', textAlign: 'center' },
   subtitle: { color: colors.textMuted, fontSize: 15, textAlign: 'center' },
   error: { color: colors.bad, fontSize: 14, textAlign: 'center' },
+  bioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    height: 56,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.accent,
+  },
+  bioText: { color: colors.accent, fontSize: 16, fontWeight: '700', flexShrink: 1 },
   link: { alignItems: 'center', paddingVertical: 12 },
   linkText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
 });

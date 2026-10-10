@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { BiometricToggle } from '@/components/BiometricToggle';
 import { LanguagePicker } from '@/components/Form';
 import { Row } from '@/components/FareRows';
 import { useAuth } from '@/lib/auth';
@@ -150,6 +151,7 @@ function AccountSection() {
       ) : session ? (
         <ActivityIndicator color={colors.accent} />
       ) : null}
+      <BiometricToggle />
       <Pressable style={[styles.button, styles.secondary]} disabled={busy} onPress={onBackup}>
         {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.secondaryText}>{t('backupNow')}</Text>}
       </Pressable>

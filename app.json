@@ -47,7 +47,19 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Tuk Tuk Meter uses Face ID so you can log in without typing your password."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Tuk Tuk Meter uses Face ID so you can log in without typing your password."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
