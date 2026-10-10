@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Tuk Tuk Meter",
+    "slug": "tuktuk-meter",
+    "scheme": "tuktukmeter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0E0F12",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.amilshihan.tuktukmeter"
+    },
+    "android": {
+      "package": "com.amilshihan.tuktukmeter",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFC107",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sqlite",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Tuk Tuk Meter uses your location to measure trip distance and calculate the fare."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
