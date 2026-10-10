@@ -12,7 +12,14 @@ export type ActiveTrip = {
   /** Set while the meter is in waiting mode. */
   waitingSince: number | null;
   lastPoint: GeoPoint | null;
+  /** When the tuk tuk last moved (or the hire started). */
+  lastMoveAt: number;
+  /** When the last usable GPS fix arrived; waiting only starts while GPS is live. */
+  lastFixAt: number | null;
 };
+
+/** Without a usable fix for this long we can't tell parked from moving, so leave the mode as is. */
+export const FIX_STALE_MS = 10_000;
 
 export type Trip = {
   id: string;
@@ -41,13 +48,40 @@ export function startTrip(tariff: Tariff, now: number): ActiveTrip {
     waitingMs: 0,
     waitingSince: null,
     lastPoint: null,
+    lastMoveAt: now,
+    lastFixAt: null,
   };
 }
 
+/**
+ * Feed a GPS fix. Real movement adds distance and ends any waiting period;
+ * a fix that shows the tuk tuk standing still only refreshes `lastFixAt`.
+ */
 export function addLocation(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
   const step = evaluateStep(trip.lastPoint, point);
-  if (step.kind !== 'accept') return trip;
-  return { ...trip, distanceM: trip.distanceM + step.distanceM, lastPoint: point };
+  if (step.kind === 'reject') return trip;
+  if (step.kind === 'jitter') return { ...trip, lastFixAt: point.timestamp };
+
+  // The very first fix only sets the anchor; it isn't movement.
+  if (trip.lastPoint == null) return { ...trip, lastPoint: point, lastFixAt: point.timestamp };
+
+  const moved = setWaiting(trip, false, point.timestamp);
+  return {
+    ...moved,
+    distanceM: trip.distanceM + step.distanceM,
+    lastPoint: point,
+    lastMoveAt: point.timestamp,
+    lastFixAt: point.timestamp,
+  };
+}
+
+/** Called every second: start waiting once the tuk tuk has stood still long enough. */
+export function tick(trip: ActiveTrip, now: number): ActiveTrip {
+  if (trip.waitingSince != null || trip.lastFixAt == null) return trip;
+  if (now - trip.lastFixAt > FIX_STALE_MS) return trip;
+  const stillMs = trip.tariff.autoWaitAfterSec * 1000;
+  if (now - trip.lastMoveAt < stillMs) return trip;
+  return setWaiting(trip, true, now);
 }
 
 export function setWaiting(trip: ActiveTrip, waiting: boolean, now: number): ActiveTrip {

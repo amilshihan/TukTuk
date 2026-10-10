@@ -45,11 +45,6 @@ export default function MeterScreen() {
     ]);
   };
 
-  const onWaiting = () => {
-    Haptics.selectionAsync();
-    meter.toggleWaiting();
-  };
-
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.topBar}>
@@ -80,18 +75,20 @@ export default function MeterScreen() {
             <FareRows tariff={trip.tariff} fare={fare} />
           </View>
 
+          <View style={[styles.modeBar, meter.isWaiting && styles.modeBarWaiting]}>
+            <Ionicons
+              name={meter.isWaiting ? 'time' : 'navigate'}
+              size={22}
+              color={meter.isWaiting ? colors.wait : colors.good}
+            />
+            <Text style={styles.modeText}>
+              {meter.isWaiting
+                ? 'Stopped: waiting charge running'
+                : `Moving: waiting starts after ${trip.tariff.autoWaitAfterSec}s stopped`}
+            </Text>
+          </View>
+
           <View style={styles.actions}>
-            <Pressable
-              onPress={onWaiting}
-              style={({ pressed }) => [
-                styles.button,
-                meter.isWaiting ? styles.waitOn : styles.waitOff,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Ionicons name={meter.isWaiting ? 'play' : 'pause'} size={26} color={colors.text} />
-              <Text style={styles.buttonText}>{meter.isWaiting ? 'RESUME TRIP' : 'START WAITING'}</Text>
-            </Pressable>
             <Pressable
               onPress={onEnd}
               style={({ pressed }) => [styles.button, styles.stopButton, pressed && styles.pressed]}
@@ -241,8 +238,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   buttonText: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 1 },
-  waitOff: { backgroundColor: colors.surfaceRaised, borderWidth: 2, borderColor: colors.wait },
-  waitOn: { backgroundColor: colors.wait },
+  modeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.good,
+  },
+  modeBarWaiting: { borderColor: colors.wait },
+  modeText: { color: colors.text, fontSize: 15, fontWeight: '600', flexShrink: 1 },
   stopButton: { backgroundColor: colors.stop },
   pressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
 

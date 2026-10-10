@@ -26,6 +26,11 @@ const FIELDS: { key: NumericKey; label: string; hint: string }[] = [
   { key: 'perKm', label: 'Rate per km', hint: 'After the included km' },
   { key: 'waitingPerMinute', label: 'Waiting rate per minute', hint: 'While the meter is in waiting mode' },
   { key: 'freeWaitingMinutes', label: 'Free waiting minutes', hint: 'Not charged per hire' },
+  {
+    key: 'autoWaitAfterSec',
+    label: 'Start waiting after (seconds)',
+    hint: 'Waiting starts when the tuk tuk stays still this long and stops when it moves',
+  },
   { key: 'roundTo', label: 'Round total to nearest', hint: '1 = no rounding, 10 = nearest 10' },
 ];
 
@@ -37,7 +42,7 @@ export default function SettingsScreen() {
 
   const onSave = () => {
     if (!parsed) {
-      Alert.alert('Check the rates', 'Every rate must be a number of 0 or more.');
+      Alert.alert('Check the rates', 'Every rate must be a number of 0 or more, and waiting must start after at least 1 second.');
       return;
     }
     saveTariff(parsed);
@@ -229,6 +234,7 @@ function toDraft(t: Tariff): Record<keyof Tariff, string> {
     perKm: String(t.perKm),
     waitingPerMinute: String(t.waitingPerMinute),
     freeWaitingMinutes: String(t.freeWaitingMinutes),
+    autoWaitAfterSec: String(t.autoWaitAfterSec),
     roundTo: String(t.roundTo),
   };
 }
@@ -240,6 +246,7 @@ function fromDraft(d: Record<keyof Tariff, string>): Tariff | null {
     if (d[key].trim() === '' || !Number.isFinite(n) || n < 0) return null;
     out[key] = n;
   }
+  if ((out.autoWaitAfterSec ?? 0) < 1) return null;
   return out as Tariff;
 }
 

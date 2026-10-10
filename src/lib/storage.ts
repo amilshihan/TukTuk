@@ -102,7 +102,14 @@ export function loadActiveTrip(): ActiveTrip | null {
   const raw = Storage.getItemSync(ACTIVE_TRIP_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ActiveTrip;
+    const t = JSON.parse(raw) as ActiveTrip;
+    // Fill fields added in later versions so a hire running across an update keeps working.
+    return {
+      ...t,
+      tariff: { ...DEFAULT_TARIFF, ...t.tariff },
+      lastMoveAt: t.lastMoveAt ?? Date.now(),
+      lastFixAt: t.lastFixAt ?? null,
+    };
   } catch {
     return null;
   }

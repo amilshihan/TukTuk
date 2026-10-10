@@ -5,7 +5,7 @@ A taxi meter app for tuk tuk drivers. It measures distance with GPS, adds waitin
 ## Features
 
 - **Live meter**: base fare for the first km, a per-km rate after that, and the total rounded to the nearest 10 (adjustable).
-- **Waiting mode**: tap **Start waiting** when the passenger gets out and **Resume trip** when they're back. Waiting is charged per started minute, and you can set free minutes.
+- **Automatic waiting**: when the tuk tuk stands still for the number of seconds set in Settings (default 5), the waiting charge starts. When it moves again, waiting stops and the distance charge carries on. Waiting is charged per started minute, and you can set free minutes.
 - **GPS filtering**: ignores jitter while parked, inaccurate fixes and impossible jumps.
 - **Crash safe**: the running hire is saved on every update. If the app is killed, the meter resumes when you reopen it.
 - **Screen stays on** during a hire.

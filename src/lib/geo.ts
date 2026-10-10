@@ -5,6 +5,8 @@ export type GeoPoint = {
   accuracy: number | null;
   /** Milliseconds since epoch. */
   timestamp: number;
+  /** Device-reported speed in m/s; null or negative when unknown. */
+  speed?: number | null;
 };
 
 const EARTH_RADIUS_M = 6_371_000;
@@ -25,6 +27,10 @@ export const MAX_ACCURACY_M = 35;
 export const MIN_STEP_M = 8;
 /** ~110 km/h — faster than any tuk tuk, so anything above is a GPS jump. */
 export const MAX_SPEED_MPS = 30;
+/** Below ~3 km/h reported speed the tuk tuk is treated as standing still... */
+export const STILL_SPEED_MPS = 0.8;
+/** ...unless the position has clearly shifted by more than this. */
+export const STILL_MAX_DRIFT_M = 15;
 
 export type StepResult =
   | { kind: 'accept'; distanceM: number }
@@ -45,6 +51,11 @@ export function evaluateStep(prev: GeoPoint | null, next: GeoPoint): StepResult 
   const d = haversineM(prev, next);
   const threshold = Math.max(MIN_STEP_M, Math.min(next.accuracy ?? 0, MAX_ACCURACY_M) * 0.5);
   if (d < threshold) return { kind: 'jitter' };
+  // Parked GPS drifts; the Doppler speed reading stays near zero, so trust it for small shifts.
+  const speed = next.speed;
+  if (speed != null && speed >= 0 && speed < STILL_SPEED_MPS && d < STILL_MAX_DRIFT_M) {
+    return { kind: 'jitter' };
+  }
 
   const dt = (next.timestamp - prev.timestamp) / 1000;
   if (dt <= 0 || d / dt > MAX_SPEED_MPS) return { kind: 'reject' };

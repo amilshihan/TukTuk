@@ -5,8 +5,8 @@ import {
   addLocation,
   currentFare,
   finishTrip,
-  setWaiting,
   startTrip,
+  tick,
   waitingSeconds,
   type ActiveTrip,
   type Trip,
@@ -41,7 +41,11 @@ export function useMeter() {
     if (!running) return;
     let cancelled = false;
     let sub: Location.LocationSubscription | null = null;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      setTrip((cur) => (cur ? tick(cur, t) : cur));
+    }, 1000);
     activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
 
     (async () => {
@@ -65,6 +69,7 @@ export function useMeter() {
                   longitude: loc.coords.longitude,
                   accuracy,
                   timestamp: loc.timestamp,
+                  speed: loc.coords.speed,
                 })
               : t,
           );
@@ -98,12 +103,6 @@ export function useMeter() {
     return true;
   }, [setTrip]);
 
-  const toggleWaiting = useCallback(() => {
-    const t = Date.now();
-    setNow(t);
-    setTrip((cur) => (cur ? setWaiting(cur, cur.waitingSince == null, t) : cur));
-  }, [setTrip]);
-
   const finish = useCallback(async (): Promise<Trip | null> => {
     if (!trip) return null;
     const done = finishTrip(trip, Date.now());
@@ -122,7 +121,6 @@ export function useMeter() {
     waitingSec: trip ? waitingSeconds(trip, now) : 0,
     fare: trip ? currentFare(trip, now) : null,
     start,
-    toggleWaiting,
     finish,
   };
 }

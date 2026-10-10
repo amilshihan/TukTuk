@@ -7,6 +7,8 @@ export type Tariff = {
   /** Charged for every minute of waiting after `freeWaitingMinutes`. */
   waitingPerMinute: number;
   freeWaitingMinutes: number;
+  /** Waiting starts by itself after the tuk tuk stands still this long. */
+  autoWaitAfterSec: number;
   /** Total is rounded to the nearest multiple of this (1 = no rounding). */
   roundTo: number;
   currency: string;
@@ -18,6 +20,7 @@ export const DEFAULT_TARIFF: Tariff = {
   perKm: 85,
   waitingPerMinute: 5,
   freeWaitingMinutes: 0,
+  autoWaitAfterSec: 5,
   roundTo: 10,
   currency: 'Rs',
 };
