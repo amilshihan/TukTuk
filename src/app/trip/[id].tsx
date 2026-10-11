@@ -6,7 +6,6 @@ import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import { FareRows, Row } from '@/components/FareRows';
 import { RouteMap } from '@/components/RouteMap';
-import { RouteSketch } from '@/components/RouteSketch';
 import { useAuth } from '@/lib/auth';
 import { formatDuration, formatKm, formatMoney } from '@/lib/fare';
 import { useI18n } from '@/lib/i18n';
@@ -18,7 +17,6 @@ export default function ReceiptScreen() {
   const { driver } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [trip, setTrip] = useState<StoredTrip | null | undefined>(undefined);
-  const [cardWidth, setCardWidth] = useState(0);
   const cardRef = useRef<View>(null);
 
   useEffect(() => {
@@ -68,7 +66,7 @@ export default function ReceiptScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/* Everything in this card goes into the shared image. */}
-      <View ref={cardRef} collapsable={false} style={styles.card} onLayout={(e) => setCardWidth(e.nativeEvent.layout.width)}>
+      <View ref={cardRef} collapsable={false} style={styles.card}>
         <Text style={styles.brand}>TUK TUK METER</Text>
         <View style={styles.totalBox}>
           <Text style={styles.totalLabel}>{t('fareToCollect')}</Text>
@@ -92,12 +90,6 @@ export default function ReceiptScreen() {
         <View style={styles.section}>
           <FareRows tariff={trip.tariff} fare={trip.fare} showTotal />
         </View>
-
-        {hasRoute && cardWidth > 0 ? (
-          <View style={styles.sketch}>
-            <RouteSketch route={trip.route} width={cardWidth - 28} height={140} />
-          </View>
-        ) : null}
       </View>
 
       <Text style={styles.sectionTitle}>{t('route')}</Text>
@@ -135,7 +127,6 @@ const styles = StyleSheet.create({
   totalLabel: { color: colors.textMuted, letterSpacing: 2, fontWeight: '700', fontSize: 13 },
   total: { color: colors.accent, fontSize: 52, fontWeight: '800', fontVariant: ['tabular-nums'] },
   section: { backgroundColor: colors.surface, borderRadius: radius.md, padding: 14, gap: 6 },
-  sketch: { backgroundColor: colors.surface, borderRadius: radius.md, alignItems: 'center', paddingVertical: 4 },
   sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
   actions: { gap: 10, marginTop: 6 },
   button: {
