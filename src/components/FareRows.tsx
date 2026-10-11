@@ -36,8 +36,9 @@ export function Row({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  label: { color: colors.textMuted, fontSize: 14, flexShrink: 1 },
-  value: { color: colors.text, fontSize: 14, fontVariant: ['tabular-nums'] },
+  // Labels stay whole; long values (addresses) wrap and keep to the right.
+  label: { color: colors.textMuted, fontSize: 14, flexShrink: 0 },
+  value: { color: colors.text, fontSize: 14, fontVariant: ['tabular-nums'], flexShrink: 1, textAlign: 'right' },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

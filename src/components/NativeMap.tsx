@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Platform, StyleSheet } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE, type LatLng } from 'react-native-maps';
 import type { RoutePoint } from '@/lib/meter';
 import { usingGoogle } from '@/lib/routing';
@@ -8,9 +9,12 @@ import { colors } from '@/theme';
 /**
  * Native map: Google Maps on Android (needs the Google Maps key), Apple Maps
  * on iPhone (free, no key). Without a Google key, Android uses the
- * OpenStreetMap WebView map instead (see useNativeMaps).
+ * OpenStreetMap WebView map instead (see useNativeMaps). Expo Go on Android
+ * draws Google maps with its own key, which Google rejects, so it also uses
+ * the WebView map; installed builds use our key.
  */
-export const useNativeMaps = Platform.OS === 'ios' || usingGoogle;
+const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+export const useNativeMaps = Platform.OS === 'ios' || (usingGoogle && !inExpoGo);
 
 type Point = { lat: number; lng: number };
 
@@ -30,20 +34,25 @@ export function NativeMap({
   const ref = useRef<MapView>(null);
   const line = useMemo<LatLng[]>(() => (route ?? []).map(([latitude, longitude]) => ({ latitude, longitude })), [route]);
 
-  // Fit the view whenever the points change.
-  const fitKey = JSON.stringify([from, to, line.length]);
-  useEffect(() => {
+  const ready = useRef(false);
+  const fit = () => {
     const pts: LatLng[] = [...line];
     if (from) pts.push({ latitude: from.lat, longitude: from.lng });
     if (to) pts.push({ latitude: to.lat, longitude: to.lng });
     if (pts.length > 1) {
-      ref.current?.fitToCoordinates(pts, { edgePadding: { top: 60, right: 50, bottom: 60, left: 50 }, animated: true });
+      ref.current?.fitToCoordinates(pts, { edgePadding: { top: 60, right: 50, bottom: 60, left: 50 }, animated: ready.current });
     } else if (pts.length === 1) {
       ref.current?.animateCamera({ center: pts[0], zoom: 15 }, { duration: 400 });
     }
+  };
+
+  // Fit the view whenever the points change. Before the map has loaded, a fit is
+  // ignored, so onMapReady fits again.
+  const fitKey = JSON.stringify([from, to, line.length]);
+  useEffect(() => {
+    if (ready.current) fit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey]);
-
   return (
     <MapView
       ref={ref}
@@ -58,6 +67,10 @@ export function NativeMap({
       zoomEnabled={interactive}
       rotateEnabled={false}
       pitchEnabled={false}
+      onMapReady={() => {
+        ready.current = true;
+        fit();
+      }}
       onPress={(e) =>
         onTap?.({ lat: e.nativeEvent.coordinate.latitude, lng: e.nativeEvent.coordinate.longitude })
       }
