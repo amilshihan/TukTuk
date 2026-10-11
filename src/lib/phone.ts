@@ -22,6 +22,21 @@ export function mobileToLoginId(mobile94: string): string {
   return `${mobile94}@drivers.tuktukmeter.local`;
 }
 
+/**
+ * A customer's WhatsApp number as digits with country code (what wa.me needs).
+ * Sri Lankan numbers can be typed locally (0771234567); foreign numbers,
+ * e.g. tourists', need a + or 00 prefix. Returns null if it can't be a number.
+ */
+export function normalizeWhatsApp(input: string): string | null {
+  const t = input.trim();
+  if (t.startsWith('+') || t.startsWith('00')) {
+    const d = t.replace(/[^\d]/g, '').replace(/^00/, '');
+    if (d.startsWith('94')) return normalizeMobile(d);
+    return /^[1-9]\d{7,14}$/.test(d) ? d : null;
+  }
+  return normalizeMobile(t);
+}
+
 export function formatMobile(mobile94: string): string {
   const d = mobile94.replace(/^94/, '0');
   return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;

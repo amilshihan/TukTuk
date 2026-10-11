@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Sharing from 'expo-sharing';
@@ -9,6 +9,7 @@ import { RouteMap } from '@/components/RouteMap';
 import { useAuth } from '@/lib/auth';
 import { formatDuration, formatKm, formatMoney } from '@/lib/fare';
 import { useI18n } from '@/lib/i18n';
+import { normalizeWhatsApp } from '@/lib/phone';
 import { getTrip, type StoredTrip } from '@/lib/storage';
 import { colors, radius } from '@/theme';
 
@@ -18,6 +19,8 @@ export default function ReceiptScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [trip, setTrip] = useState<StoredTrip | null | undefined>(undefined);
   const cardRef = useRef<View>(null);
+  const [waNumber, setWaNumber] = useState('');
+  const [waError, setWaError] = useState(false);
 
   useEffect(() => {
     getTrip(id).then(setTrip);
@@ -39,19 +42,46 @@ export default function ReceiptScreen() {
   const when = (ms: number) => new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   const hasRoute = trip.route.length >= 2;
 
-  const shareText = () => {
-    const lines = [
-      t('receiptHeader'),
+  // The receipt as a message. *text* shows bold in WhatsApp.
+  const receiptText = () => {
+    const f = trip.fare;
+    return [
+      `*${t('receiptHeader')}*`,
       when(trip.startedAt),
       driver ? `${t('driver')}: ${driver.full_name} · ${driver.vehicle_no}` : null,
+      trip.startAddress ? `${t('from')}: ${trip.startAddress}` : null,
+      trip.endAddress ? `${t('to')}: ${trip.endAddress}` : null,
+      '',
       `${t('distance')}: ${formatKm(trip.distanceM)} km`,
       `${t('tripTime')}: ${formatDuration((trip.endedAt - trip.startedAt) / 1000)}`,
       `${t('waitingTime')}: ${formatDuration(trip.waitingSec)}`,
-      `${t('total')}: ${money(trip.fare.total)}`,
-    ];
-    Share.share({ message: lines.filter(Boolean).join('\n') });
+      '',
+      `${t('baseFare', { km: trip.tariff.baseDistanceKm })}: ${money(f.baseFare)}`,
+      `${t('distanceAt', { rate: trip.tariff.perKm })}: ${money(f.distanceCharge)}`,
+      `${t('waitingAt', { rate: trip.tariff.waitingPerMinute })}: ${money(f.waitingCharge)}`,
+      f.nightCharge > 0 ? `${t('nightSurcharge', { p: trip.tariff.nightPercent })}: ${money(f.nightCharge)}` : null,
+      `*${t('total')}: ${money(f.total)}*`,
+    ]
+      .filter((l) => l != null)
+      .join('\n');
   };
 
+  const shareText = () => Share.share({ message: receiptText() });
+
+  // Opens the customer's WhatsApp chat with the receipt typed in; the driver taps send.
+  const onWhatsApp = async () => {
+    const number = normalizeWhatsApp(waNumber);
+    if (!number) {
+      setWaError(true);
+      return;
+    }
+    setWaError(false);
+    try {
+      await Linking.openURL(`https://wa.me/${number}?text=${encodeURIComponent(receiptText())}`);
+    } catch {
+      Alert.alert(t('whatsAppFailed'));
+    }
+  };
   // Share the receipt card as a picture (WhatsApp etc.); fall back to text if that fails.
   const onShare = async () => {
     try {
@@ -92,6 +122,41 @@ export default function ReceiptScreen() {
         </View>
       </View>
 
+      <View style={styles.waCard}>
+        <View style={styles.waHead}>
+          <Ionicons name="logo-whatsapp" size={22} color={WHATSAPP} />
+          <Text style={styles.waTitle}>{t('sendWhatsApp')}</Text>
+        </View>
+        <View style={styles.waRow}>
+          <TextInput
+            style={[styles.waInput, waError && styles.waInputError]}
+            value={waNumber}
+            onChangeText={(v) => {
+              setWaNumber(v);
+              if (waError) setWaError(false);
+            }}
+            placeholder="07X XXX XXXX / +44…"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            returnKeyType="send"
+            onSubmitEditing={onWhatsApp}
+            accessibilityLabel={t('whatsAppNumber')}
+          />
+          <Pressable
+            style={({ pressed }) => [styles.waSend, pressed && { opacity: 0.8 }]}
+            onPress={onWhatsApp}
+            accessibilityRole="button"
+            accessibilityLabel={t('sendWhatsApp')}
+          >
+            <Ionicons name="send" size={22} color="#fff" />
+          </Pressable>
+        </View>
+        <Text style={[styles.waHint, waError && { color: colors.bad }]}>
+          {waError ? t('invalidWhatsApp') : t('whatsAppHint')}
+        </Text>
+      </View>
+
       <Text style={styles.sectionTitle}>{t('route')}</Text>
       {hasRoute ? <RouteMap route={trip.route} /> : <Text style={styles.muted}>{t('noRoute')}</Text>}
 
@@ -108,8 +173,35 @@ export default function ReceiptScreen() {
   );
 }
 
+const WHATSAPP = '#25D366';
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  waCard: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: 14, gap: 10 },
+  waHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  waTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  waRow: { flexDirection: 'row', gap: 10 },
+  waInput: {
+    flex: 1,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.text,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    fontSize: 17,
+    height: 52,
+  },
+  waInputError: { borderColor: colors.bad },
+  waSend: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: WHATSAPP,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  waHint: { color: colors.textMuted, fontSize: 12 },
   center: { alignItems: 'center', justifyContent: 'center' },
   muted: { color: colors.textMuted },
   content: { padding: 16, gap: 14 },
