@@ -44,7 +44,7 @@ export function isRolling(point: GeoPoint): boolean {
 export type StepResult =
   | { kind: 'accept'; distanceM: number }
   | { kind: 'jitter' }
-  | { kind: 'reject' };
+  | { kind: 'reject'; reason: 'accuracy' | 'speed' };
 
 /**
  * Decide how a new GPS fix relates to the last accepted one.
@@ -54,7 +54,7 @@ export type StepResult =
  * - reject: inaccurate or physically impossible; drop it
  */
 export function evaluateStep(prev: GeoPoint | null, next: GeoPoint): StepResult {
-  if (next.accuracy != null && next.accuracy > MAX_ACCURACY_M) return { kind: 'reject' };
+  if (next.accuracy != null && next.accuracy > MAX_ACCURACY_M) return { kind: 'reject', reason: 'accuracy' };
   if (!prev) return { kind: 'accept', distanceM: 0 };
 
   const d = haversineM(prev, next);
@@ -67,7 +67,7 @@ export function evaluateStep(prev: GeoPoint | null, next: GeoPoint): StepResult 
   }
 
   const dt = (next.timestamp - prev.timestamp) / 1000;
-  if (dt <= 0 || d / dt > MAX_SPEED_MPS) return { kind: 'reject' };
+  if (dt <= 0 || d / dt > MAX_SPEED_MPS) return { kind: 'reject', reason: 'speed' };
 
   return { kind: 'accept', distanceM: d };
 }

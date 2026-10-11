@@ -22,7 +22,15 @@ export type ActiveTrip = {
   waitingPeriods: [number, number][];
   /** How GPS ran: 'background' (installed app) or 'foreground' (Expo Go / no permission). */
   trackingMode?: string | null;
+  /** Consecutive fixes that agree with each other but are impossibly far from lastPoint. */
+  jumpStreak?: number;
+  jumpCandidate?: GeoPoint | null;
 };
+
+/** Fixes taken more than this long before the hire started are old cached positions. */
+export const STALE_FIX_MS = 2_000;
+/** After this many agreeing fixes that all disagree with the anchor, the anchor was the bad one. */
+export const REANCHOR_AFTER = 3;
 
 /** [latitude, longitude] rounded to ~1 m to keep the saved trip small. */
 export type RoutePoint = [number, number];
@@ -80,8 +88,17 @@ export function startTrip(tariff: Tariff, now: number): ActiveTrip {
  * a fix that shows the tuk tuk standing still only refreshes `lastFixAt`.
  */
 export function addLocation(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
+  // Android often hands over its last known position first, which can be minutes
+  // old and far away. Only measure from positions taken during this hire.
+  if (point.timestamp < trip.startedAt - STALE_FIX_MS) return trip;
+
   const step = evaluateStep(trip.lastPoint, point);
-  if (step.kind === 'reject') return trip;
+  if (step.kind === 'reject') {
+    return step.reason === 'speed' ? noteJump(trip, point) : trip;
+  }
+  // A fix that fits the anchor clears any run of suspected jumps.
+  if (trip.jumpStreak) trip = { ...trip, jumpStreak: 0, jumpCandidate: null };
+
   if (step.kind === 'jitter') {
     // Creeping in traffic: too little distance to count yet, but the speed
     // reading shows it is rolling, so it is not waiting.
@@ -104,6 +121,30 @@ export function addLocation(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
     lastMoveAt: point.timestamp,
     lastFixAt: point.timestamp,
     route: [...trip.route, toRoutePoint(point)],
+  };
+}
+
+/**
+ * A fix impossibly far from the anchor. One alone is a GPS glitch and is
+ * dropped. But if several in a row agree with each other, the anchor itself
+ * was wrong (a bad first fix): move it to where the tuk tuk really is,
+ * without charging for the jump.
+ */
+function noteJump(trip: ActiveTrip, point: GeoPoint): ActiveTrip {
+  const prev = trip.jumpCandidate ?? null;
+  const agrees = prev != null && evaluateStep(prev, point).kind !== 'reject';
+  const streak = agrees ? (trip.jumpStreak ?? 0) + 1 : 1;
+  if (streak < REANCHOR_AFTER) return { ...trip, jumpStreak: streak, jumpCandidate: point };
+
+  const routePoint = toRoutePoint(point);
+  return {
+    ...trip,
+    lastPoint: point,
+    lastFixAt: point.timestamp,
+    jumpStreak: 0,
+    jumpCandidate: null,
+    // If nothing was driven from the bad anchor yet, drop it from the route too.
+    route: trip.distanceM === 0 ? [routePoint] : [...trip.route, routePoint],
   };
 }
 

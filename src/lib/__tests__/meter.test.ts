@@ -143,3 +143,35 @@ test('each waiting period is recorded with its start and end', () => {
   ]);
   assert.equal(done.waitingSec, 90);
 });
+
+test('ignores an old cached position handed over when the hire starts', () => {
+  let trip = startTrip(DEFAULT_TARIFF, 600_000);
+  trip = addLocation(trip, pt(6.927, 300_000)); // last known position from 5 minutes ago, 2.2 km away
+  assert.equal(trip.lastPoint, null);
+  trip = addLocation(trip, pt(6.907, 601_000));
+  trip = addLocation(trip, pt(6.906, 611_000));
+  assert.ok(Math.abs(trip.distanceM - 111) < 2, `got ${trip.distanceM}`);
+});
+
+test('a wrong first fix is replaced without charging for the jump', () => {
+  let trip = startTrip(DEFAULT_TARIFF, 0);
+  trip = addLocation(trip, pt(6.927, 0)); // bad first fix, 2.2 km north of the tuk tuk
+  // The real position, a few metres apart each second (agreeing with each other).
+  for (let s = 1; s <= 4; s++) trip = addLocation(trip, pt(6.907 - s * 0.00001, s * 1000));
+  assert.ok(Math.abs((trip.lastPoint?.latitude ?? 0) - 6.907) < 0.001, 'anchor moved to the real position');
+  assert.equal(trip.distanceM, 0);
+  assert.equal(trip.route.length, 1);
+  // Driving on from there counts normally.
+  trip = addLocation(trip, pt(6.906, 15_000));
+  assert.ok(trip.distanceM > 80 && trip.distanceM < 120, `got ${trip.distanceM}`);
+});
+
+test('a single GPS glitch mid-trip is still dropped', () => {
+  let trip = startTrip(DEFAULT_TARIFF, 0);
+  trip = addLocation(trip, pt(6.9, 0));
+  trip = addLocation(trip, pt(6.901, 10_000));
+  trip = addLocation(trip, pt(6.95, 11_000)); // 5.5 km in 1 s
+  trip = addLocation(trip, pt(6.902, 20_000));
+  trip = addLocation(trip, pt(6.903, 30_000));
+  assert.ok(Math.abs(trip.distanceM - 333.6) < 2, `got ${trip.distanceM}`);
+});
