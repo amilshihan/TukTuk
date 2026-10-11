@@ -67,7 +67,7 @@ export default function ReceiptScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {/* Everything in this card goes into the shared image. */}
       <View ref={cardRef} collapsable={false} style={styles.card}>
-        <Text style={styles.brand}>TUK TUK METER</Text>
+        <Text style={styles.brand}>AMIL TAXI METER</Text>
         <View style={styles.totalBox}>
           <Text style={styles.totalLabel}>{t('fareToCollect')}</Text>
           <Text style={styles.total} adjustsFontSizeToFit numberOfLines={1}>
@@ -114,9 +114,9 @@ const styles = StyleSheet.create({
   muted: { color: colors.textMuted },
   content: { padding: 16, gap: 14 },
   card: { backgroundColor: colors.bg, borderRadius: radius.lg, padding: 14, gap: 12, borderWidth: 1, borderColor: colors.border },
-  brand: { color: colors.accent, fontWeight: '800', letterSpacing: 3, fontSize: 13, textAlign: 'center' },
+  brand: { color: colors.link, fontWeight: '800', letterSpacing: 3, fontSize: 13, textAlign: 'center' },
   totalBox: {
-    backgroundColor: '#000',
+    backgroundColor: colors.display,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.accent,

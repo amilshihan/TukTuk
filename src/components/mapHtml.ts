@@ -19,7 +19,7 @@ export function mapHtml({ interactive }: { interactive: boolean }): string {
 <script>
 var map = new maplibregl.Map({
   container: 'm',
-  style: 'https://tiles.openfreemap.org/styles/dark',
+  style: 'https://tiles.openfreemap.org/styles/liberty',
   center: [79.8612, 6.9271],
   zoom: 12,
   interactive: ${interactive},

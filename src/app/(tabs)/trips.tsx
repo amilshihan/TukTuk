@@ -110,5 +110,5 @@ const styles = StyleSheet.create({
   },
   time: { color: colors.text, fontSize: 16, fontWeight: '600' },
   meta: { color: colors.textMuted, fontSize: 13, marginTop: 2 },
-  total: { color: colors.accent, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  total: { color: colors.link, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
 });

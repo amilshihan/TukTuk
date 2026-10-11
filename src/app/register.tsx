@@ -129,5 +129,5 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textMuted, fontSize: 15 },
   error: { color: colors.bad, fontSize: 14, textAlign: 'center' },
   link: { alignItems: 'center', paddingVertical: 12 },
-  linkText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  linkText: { color: colors.link, fontSize: 16, fontWeight: '600' },
 });

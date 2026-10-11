@@ -1,14 +1,13 @@
-import { useCallback, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useMeter, type GpsStatus } from '@/hooks/useMeter';
-import { formatDuration, formatKm, formatMoney, isNightHire, type Tariff } from '@/lib/fare';
+import { formatDuration, formatKm, formatMoney, isNightHire } from '@/lib/fare';
 import { useI18n, type StringKey } from '@/lib/i18n';
-import { loadTariff, summarySince, type DaySummary } from '@/lib/storage';
 import { FareRows } from '@/components/FareRows';
+import { HomeView } from '@/components/HomeView';
 import { colors, radius } from '@/theme';
 
 export default function MeterScreen() {
@@ -43,15 +42,15 @@ export default function MeterScreen() {
     ]);
   };
 
+  if (!trip || !fare) return <HomeView onStart={onStart} />;
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.topBar}>
-        <Text style={styles.brand}>TUK TUK METER</Text>
+        <Text style={styles.brand}>AMIL TAXI METER</Text>
         <GpsChip status={meter.gps} accuracy={meter.gpsAccuracy} />
       </View>
 
-      {trip && fare ? (
-        <>
           <View style={styles.fareBox}>
             <Text style={styles.fareLabel}>{meter.isWaiting ? t('waiting') : t('hired')}</Text>
             <Text style={styles.fare} adjustsFontSizeToFit numberOfLines={1}>
@@ -91,74 +90,11 @@ export default function MeterScreen() {
               onPress={onEnd}
               style={({ pressed }) => [styles.button, styles.stopButton, pressed && styles.pressed]}
             >
-              <Ionicons name="stop" size={26} color={colors.text} />
+              <Ionicons name="stop" size={26} color="#fff" />
               <Text style={styles.buttonText}>{t('endHire')}</Text>
             </Pressable>
           </View>
-        </>
-      ) : (
-        <IdleView onStart={onStart} />
-      )}
     </SafeAreaView>
-  );
-}
-
-function IdleView({ onStart }: { onStart: () => void }) {
-  const { t } = useI18n();
-  const [today, setToday] = useState<DaySummary | null>(null);
-  const [tariff, setTariff] = useState<Tariff>(loadTariff);
-  const { currency } = tariff;
-
-  // Refresh when returning from Settings or after finishing a hire.
-  useFocusEffect(
-    useCallback(() => {
-      setTariff(loadTariff());
-      const midnight = new Date();
-      midnight.setHours(0, 0, 0, 0);
-      summarySince(midnight.getTime()).then(setToday).catch(() => {});
-    }, []),
-  );
-
-  return (
-    <View style={styles.idle}>
-      <View style={styles.todayCard}>
-        <Text style={styles.cardTitle}>{t('today')}</Text>
-        <View style={styles.stats}>
-          <Stat label={t('earnings')} value={formatMoney(today?.earnings ?? 0, currency)} />
-          <Stat label={t('trips')} value={String(today?.trips ?? 0)} />
-          <Stat label={t('distance')} value={formatKm(today?.distanceM ?? 0)} unit="km" />
-        </View>
-      </View>
-
-      <Pressable
-        onPress={onStart}
-        style={({ pressed }) => [styles.startButton, pressed && styles.pressed]}
-        accessibilityRole="button"
-        accessibilityLabel={t('startHire')}
-      >
-        <Ionicons name="play" size={56} color={colors.accentText} />
-        <Text style={styles.startText} numberOfLines={2} adjustsFontSizeToFit>
-          {t('startHire')}
-        </Text>
-      </Pressable>
-
-      <Pressable onPress={() => router.push('/settings')}>
-        <Text style={styles.tariffLine}>
-          {t('tariffLine', {
-            base: formatMoney(tariff.baseFare, currency),
-            km: tariff.baseDistanceKm,
-            perKm: tariff.perKm,
-            wait: tariff.waitingPerMinute,
-          })}
-        </Text>
-        {tariff.nightPercent > 0 ? (
-          <Text style={styles.tariffLine}>
-            {t('nightLine', { p: tariff.nightPercent, from: tariff.nightStartHour, to: tariff.nightEndHour })}
-          </Text>
-        ) : null}
-        <Text style={styles.tariffEdit}>{t('changeRates')}</Text>
-      </Pressable>
-    </View>
   );
 }
 
@@ -216,7 +152,7 @@ const styles = StyleSheet.create({
   chipText: { color: colors.text, fontSize: 12, fontVariant: ['tabular-nums'] },
 
   fareBox: {
-    backgroundColor: '#000',
+    backgroundColor: colors.display,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.accent,
@@ -252,7 +188,7 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: radius.md,
   },
-  buttonText: { color: colors.text, fontSize: 20, fontWeight: '800', letterSpacing: 1 },
+  buttonText: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 1 },
   modeBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,31 +205,4 @@ const styles = StyleSheet.create({
   stopButton: { backgroundColor: colors.stop },
   pressed: { opacity: 0.75, transform: [{ scale: 0.98 }] },
 
-  idle: { flex: 1, justifyContent: 'space-between', paddingBottom: 24 },
-  todayCard: { marginTop: 4 },
-  cardTitle: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  startButton: {
-    alignSelf: 'center',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  startText: {
-    color: colors.accentText,
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginTop: 4,
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  tariffLine: { color: colors.textMuted, textAlign: 'center', fontSize: 13 },
-  tariffEdit: { color: colors.accent, textAlign: 'center', fontSize: 13, marginTop: 4, fontWeight: '600' },
 });

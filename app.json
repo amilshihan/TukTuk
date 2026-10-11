@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "Tuk Tuk Meter",
+    "name": "Amil Taxi Meter",
     "slug": "tuktuk-meter",
     "scheme": "tuktukmeter",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0E0F12",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4F7FB",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.amilshihan.tuktukmeter"
@@ -40,8 +40,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Tuk Tuk Meter uses your location to measure trip distance and calculate the fare.",
-          "locationAlwaysAndWhenInUsePermission": "Tuk Tuk Meter keeps measuring the trip while the screen is off or you use another app, so the fare stays correct.",
+          "locationWhenInUsePermission": "Amil Taxi Meter uses your location to measure trip distance and calculate the fare.",
+          "locationAlwaysAndWhenInUsePermission": "Amil Taxi Meter keeps measuring the trip while the screen is off or you use another app, so the fare stays correct.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
@@ -51,13 +51,13 @@
       [
         "expo-secure-store",
         {
-          "faceIDPermission": "Tuk Tuk Meter uses Face ID so you can log in without typing your password."
+          "faceIDPermission": "Amil Taxi Meter uses Face ID so you can log in without typing your password."
         }
       ],
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Tuk Tuk Meter uses Face ID so you can log in without typing your password."
+          "faceIDPermission": "Amil Taxi Meter uses Face ID so you can log in without typing your password."
         }
       ]
     ],

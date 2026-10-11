@@ -221,5 +221,5 @@ const styles = StyleSheet.create({
   secondary: { backgroundColor: colors.surfaceRaised },
   secondaryText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   link: { alignItems: 'center', paddingVertical: 6 },
-  linkText: { color: colors.accent, fontWeight: '600' },
+  linkText: { color: colors.link, fontWeight: '600' },
 });

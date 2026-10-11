@@ -165,7 +165,7 @@ export default function PlanScreen() {
         <View style={styles.results}>
           {editing === 'from' ? (
             <Pressable style={styles.result} onPress={useCurrent}>
-              <Ionicons name="locate" size={20} color={colors.accent} />
+              <Ionicons name="locate" size={20} color={colors.link} />
               <Text style={styles.resultTitle}>{t('currentLocation')}</Text>
             </Pressable>
           ) : null}
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     top: 12,
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(14,15,18,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.94)',
     borderRadius: radius.sm,
     padding: 10,
   },
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   estimateLabel: { color: colors.textMuted, letterSpacing: 2, fontWeight: '700', fontSize: 12, textAlign: 'center' },
   estimate: {
-    color: colors.accent,
+    color: colors.link,
     fontSize: 38,
     fontWeight: '800',
     textAlign: 'center',

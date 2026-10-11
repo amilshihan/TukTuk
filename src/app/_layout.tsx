@@ -10,7 +10,7 @@ export default function RootLayout() {
   return (
     <I18nProvider>
       <AuthProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <RootNavigator />
       </AuthProvider>
     </I18nProvider>
@@ -55,6 +55,6 @@ function RootNavigator() {
 const styles = StyleSheet.create({
   blank: { flex: 1, backgroundColor: colors.bg },
   setup: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', padding: 24, gap: 12 },
-  setupTitle: { color: colors.accent, fontSize: 22, fontWeight: '800' },
+  setupTitle: { color: colors.link, fontSize: 22, fontWeight: '800' },
   setupBody: { color: colors.text, fontSize: 16, lineHeight: 22 },
 });

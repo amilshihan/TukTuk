@@ -88,5 +88,5 @@ const styles = StyleSheet.create({
   },
   langChipActive: { borderColor: colors.accent, backgroundColor: colors.surfaceRaised },
   langText: { color: colors.textMuted, fontSize: 15, fontWeight: '600' },
-  langTextActive: { color: colors.accent },
+  langTextActive: { color: colors.link },
 });

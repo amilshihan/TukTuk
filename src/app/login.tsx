@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,9 +20,12 @@ import { useI18n, type StringKey } from '@/lib/i18n';
 import { normalizeMobile } from '@/lib/phone';
 import { colors } from '@/theme';
 
+const HERO = require('../../assets/images/home-hero.png');
+
 export default function LoginScreen() {
   const { t } = useI18n();
   const { signIn } = useAuth();
+  const { width } = useWindowDimensions();
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<StringKey | null>(null);
@@ -64,8 +77,13 @@ export default function LoginScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <LanguagePicker />
+          <Image
+            source={HERO}
+            style={[styles.hero, { height: ((width - 32) * 560) / 851 }]}
+            resizeMode="cover"
+            accessibilityLabel="Amil Taxi Meter"
+          />
           <View style={styles.header}>
-            <Text style={styles.brand}>TUK TUK METER</Text>
             <Text style={styles.title}>{t('loginTitle')}</Text>
             <Text style={styles.subtitle}>{t('loginSubtitle')}</Text>
           </View>
@@ -100,7 +118,7 @@ export default function LoginScreen() {
               disabled={busy}
               accessibilityRole="button"
             >
-              <Ionicons name="finger-print" size={28} color={colors.accent} />
+              <Ionicons name="finger-print" size={28} color={colors.link} />
               <Text style={styles.bioText}>{t('loginWithBiometric')}</Text>
             </Pressable>
           ) : null}
@@ -117,8 +135,8 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, gap: 16, flexGrow: 1, justifyContent: 'center' },
-  header: { alignItems: 'center', gap: 6, marginVertical: 24 },
-  brand: { color: colors.accent, fontWeight: '800', letterSpacing: 3, fontSize: 16 },
+  hero: { width: '100%', borderRadius: 22 },
+  header: { alignItems: 'center', gap: 6, marginBottom: 8 },
   title: { color: colors.text, fontSize: 26, fontWeight: '800', textAlign: 'center' },
   subtitle: { color: colors.textMuted, fontSize: 15, textAlign: 'center' },
   error: { color: colors.bad, fontSize: 14, textAlign: 'center' },
@@ -132,7 +150,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.accent,
   },
-  bioText: { color: colors.accent, fontSize: 16, fontWeight: '700', flexShrink: 1 },
+  bioText: { color: colors.link, fontSize: 16, fontWeight: '700', flexShrink: 1 },
   link: { alignItems: 'center', paddingVertical: 12 },
-  linkText: { color: colors.accent, fontSize: 16, fontWeight: '600' },
+  linkText: { color: colors.link, fontSize: 16, fontWeight: '600' },
 });

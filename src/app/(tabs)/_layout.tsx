@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { TileTabBar } from '@/components/TileTabBar';
 import { useI18n } from '@/lib/i18n';
 import { colors } from '@/theme';
 
@@ -7,45 +7,18 @@ export default function TabsLayout() {
   const { t } = useI18n();
   return (
     <Tabs
+      tabBar={(props) => <TileTabBar {...props} />}
       screenOptions={{
-        headerStyle: { backgroundColor: colors.bg },
+        headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
+        headerShadowVisible: false,
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t('tabMeter'),
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="speedometer" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="plan"
-        options={{
-          title: t('tabPlan'),
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => <Ionicons name="map" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="trips"
-        options={{
-          title: t('tabTrips'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="list" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: t('tabSettings'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings-sharp" color={color} size={size} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: t('tabMeter'), headerShown: false }} />
+      <Tabs.Screen name="plan" options={{ title: t('tabPlan'), headerShown: false }} />
+      <Tabs.Screen name="trips" options={{ title: t('tabTrips') }} />
+      <Tabs.Screen name="settings" options={{ title: t('tabSettings') }} />
     </Tabs>
   );
 }
