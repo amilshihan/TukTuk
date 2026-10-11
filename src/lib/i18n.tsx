@@ -115,6 +115,7 @@ const en = {
   resetDefaults: 'Reset to defaults',
   saved: 'Saved',
   savedBody: 'New rates apply from the next hire.',
+  ratesLocked: 'Rates are locked while a hire is running. End the hire to change them.',
   checkRates: 'Check the rates',
   checkRatesBody:
     'Every value must be a number of 0 or more, waiting must start after at least 1 second, and hours must be 0–23.',
@@ -277,6 +278,7 @@ const si: Strings = {
   resetDefaults: 'මුල් අගයන් යළි පිහිටුවන්න',
   saved: 'සුරැකිණි',
   savedBody: 'නව ගාස්තු ඊළඟ කුලියේ සිට අදාළ වේ.',
+  ratesLocked: 'කුලියක් ක්‍රියාත්මක වන අතරතුර ගාස්තු අගුළු දමා ඇත. ඒවා වෙනස් කිරීමට කුලිය අවසන් කරන්න.',
   checkRates: 'ගාස්තු පරීක්ෂා කරන්න',
   checkRatesBody:
     'සියලු අගයන් 0 හෝ ඊට වැඩි අංක විය යුතුයි, රැඳී සිටීම අවම වශයෙන් තත්පර 1කට පසු ඇරඹිය යුතුයි, පැය 0–23 අතර විය යුතුයි.',
@@ -436,6 +438,7 @@ const ta: Strings = {
   resetDefaults: 'இயல்புநிலைக்கு மீட்டமை',
   saved: 'சேமிக்கப்பட்டது',
   savedBody: 'புதிய கட்டணங்கள் அடுத்த வாடகையிலிருந்து பொருந்தும்.',
+  ratesLocked: 'வாடகை நடைபெறும் போது கட்டணங்கள் பூட்டப்பட்டுள்ளன. அவற்றை மாற்ற வாடகையை முடிக்கவும்.',
   checkRates: 'கட்டணங்களைச் சரிபார்க்கவும்',
   checkRatesBody:
     'எல்லா மதிப்புகளும் 0 அல்லது அதற்கு மேற்பட்ட எண்களாக இருக்க வேண்டும், காத்திருப்பு குறைந்தது 1 வினாடிக்குப் பின் தொடங்க வேண்டும், மணி 0–23 க்குள் இருக்க வேண்டும்.',

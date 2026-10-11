@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { BiometricToggle } from '@/components/BiometricToggle';
 import { LanguagePicker } from '@/components/Form';
 import { Row } from '@/components/FareRows';
@@ -44,11 +46,27 @@ const NIGHT_FIELDS: { key: NumericKey; label: StringKey; hint: StringKey }[] = [
 export default function SettingsScreen() {
   const { t } = useI18n();
   const [draft, setDraft] = useState<Draft>(() => toDraft(loadTariff()));
+  // Rates can't be changed while a hire is running.
+  const [locked, setLocked] = useState(() => loadActiveTrip() != null);
+
+  useFocusEffect(
+    useCallback(() => {
+      const running = loadActiveTrip() != null;
+      setLocked(running);
+      // Show the rates actually in force, dropping any unsaved edits.
+      if (running) setDraft(toDraft(loadTariff()));
+    }, []),
+  );
 
   const parsed = fromDraft(draft);
   const example = parsed ? calculateFare(parsed, 5000, 10 * 60) : null;
 
   const onSave = () => {
+    if (loadActiveTrip()) {
+      setLocked(true);
+      Alert.alert(t('ratesLocked'));
+      return;
+    }
     if (!parsed) {
       Alert.alert(t('checkRates'), t('checkRatesBody'));
       return;
@@ -63,6 +81,7 @@ export default function SettingsScreen() {
         style={styles.input}
         value={draft[f.key]}
         onChangeText={(v) => setDraft({ ...draft, [f.key]: v })}
+        editable={!locked}
         keyboardType="decimal-pad"
         selectTextOnFocus
       />
@@ -76,12 +95,19 @@ export default function SettingsScreen() {
         <LanguagePicker />
 
         <Text style={styles.section}>{t('fareRates')}</Text>
-        <View style={styles.card}>
+        {locked ? (
+          <View style={styles.lockBanner}>
+            <Ionicons name="lock-closed" size={20} color={colors.warn} />
+            <Text style={styles.lockText}>{t('ratesLocked')}</Text>
+          </View>
+        ) : null}
+        <View style={[styles.card, locked && styles.lockedCard]}>
           <Field label={t('currency')} hint={t('currencyHint')}>
             <TextInput
               style={styles.input}
               value={draft.currency}
               onChangeText={(v) => setDraft({ ...draft, currency: v })}
+              editable={!locked}
               autoCapitalize="none"
               maxLength={6}
             />
@@ -90,18 +116,22 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.section}>{t('nightRate')}</Text>
-        <View style={styles.card}>{NIGHT_FIELDS.map(numberField)}</View>
+        <View style={[styles.card, locked && styles.lockedCard]}>{NIGHT_FIELDS.map(numberField)}</View>
 
         {parsed && example ? (
           <Text style={styles.example}>{t('example', { fare: formatMoney(example.total, parsed.currency) })}</Text>
         ) : null}
 
-        <Pressable style={[styles.button, styles.primary]} onPress={onSave}>
-          <Text style={styles.primaryText}>{t('saveRates')}</Text>
-        </Pressable>
-        <Pressable style={styles.link} onPress={() => setDraft(toDraft(DEFAULT_TARIFF))}>
-          <Text style={styles.linkText}>{t('resetDefaults')}</Text>
-        </Pressable>
+        {locked ? null : (
+          <>
+            <Pressable style={[styles.button, styles.primary]} onPress={onSave}>
+              <Text style={styles.primaryText}>{t('saveRates')}</Text>
+            </Pressable>
+            <Pressable style={styles.link} onPress={() => setDraft(toDraft(DEFAULT_TARIFF))}>
+              <Text style={styles.linkText}>{t('resetDefaults')}</Text>
+            </Pressable>
+          </>
+        )}
 
         <Text style={styles.section}>{t('account')}</Text>
         <AccountSection />
@@ -214,6 +244,16 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   example: { color: colors.textMuted, textAlign: 'center' },
+  lockBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF4D1',
+    borderRadius: radius.md,
+    padding: 12,
+  },
+  lockText: { color: colors.text, fontSize: 14, flex: 1, lineHeight: 20 },
+  lockedCard: { opacity: 0.55 },
   driverName: { color: colors.text, fontSize: 18, fontWeight: '700' },
   button: { height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   primary: { backgroundColor: colors.accent },
