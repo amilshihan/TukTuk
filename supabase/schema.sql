@@ -36,6 +36,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Only driver registrations carry a mobile number; admin accounts don't get a profile.
+  if not (coalesce(new.raw_user_meta_data, '{}'::jsonb) ? 'mobile') then
+    return new;
+  end if;
   insert into public.drivers (id, mobile, full_name, address, nic, vehicle_no, licence_no)
   values (
     new.id,
@@ -146,7 +150,74 @@ create trigger protect_completed_trip
   for each row execute function public.protect_completed_trip();
 
 -- ---------------------------------------------------------------------------
--- Operator views (Table Editor). Only the dashboard can read them, not the app.
+-- Admins and driver status (admin website).
+-- ---------------------------------------------------------------------------
+alter table public.drivers add column if not exists active boolean not null default true;
+alter table public.drivers add column if not exists deactivated_at timestamptz;
+-- Updated by the app while it's open, so the admin can see who is online.
+alter table public.drivers add column if not exists last_seen_at timestamptz;
+
+create table if not exists public.admins (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.admins enable row level security;
+
+drop policy if exists "admins read own row" on public.admins;
+create policy "admins read own row" on public.admins
+  for select to authenticated using (user_id = (select auth.uid()));
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.admins where user_id = (select auth.uid()));
+$$;
+
+drop policy if exists "admins read all drivers" on public.drivers;
+create policy "admins read all drivers" on public.drivers
+  for select to authenticated using ((select public.is_admin()));
+
+drop policy if exists "admins update drivers" on public.drivers;
+create policy "admins update drivers" on public.drivers
+  for update to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+drop policy if exists "admins read all trips" on public.trips;
+create policy "admins read all trips" on public.trips
+  for select to authenticated using ((select public.is_admin()));
+
+-- Drivers can update their own row (last seen), but only an admin can
+-- activate or deactivate an account.
+create or replace function public.protect_driver_status()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.active is distinct from old.active then
+    if not public.is_admin() then
+      raise exception 'Only an admin can change a driver''s status';
+    end if;
+    new.deactivated_at := case when new.active then null else now() end;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_driver_status on public.drivers;
+create trigger protect_driver_status
+  before update on public.drivers
+  for each row execute function public.protect_driver_status();
+
+-- ---------------------------------------------------------------------------
+-- Reporting views (Table Editor and the admin website). They run with the
+-- caller's permissions: an admin sees every driver, a driver only themselves.
 -- ---------------------------------------------------------------------------
 
 -- Every trip with the driver's details, newest first, times in Sri Lanka time.
@@ -180,32 +251,51 @@ select
   t.platform,
   t.app_version,
   t.waiting_periods,
-  t.id as trip_id
+  t.id as trip_id,
+  t.driver_id,
+  t.started_at as started_at_utc,
+  t.updated_at
 from public.trips t
 join public.drivers d on d.id = t.driver_id
 order by t.started_at desc;
 
-revoke all on public.trip_log from anon, authenticated;
+revoke all on public.trip_log from anon;
+grant select on public.trip_log to authenticated;
 
--- Every driver with their trip totals (completed trips only).
+-- Every driver with their status and trip totals (completed trips only).
+-- "On hire now" only counts hires updated in the last 5 minutes, so a phone that
+-- died mid-hire doesn't show as on hire forever.
 drop view if exists public.driver_summary;
 create view public.driver_summary
 with (security_invoker = true) as
 select
+  d.id,
   d.full_name,
   d.mobile,
   d.vehicle_no,
   d.nic,
   d.licence_no,
   d.address,
-  d.created_at at time zone 'Asia/Colombo' as registered_at,
+  d.active,
+  d.deactivated_at,
+  d.last_seen_at,
+  d.created_at as registered_at,
   count(t.id) filter (where t.status = 'completed') as trips,
   coalesce(sum(t.total) filter (where t.status = 'completed'), 0) as total_fares,
   round(coalesce(sum(t.distance_m) filter (where t.status = 'completed'), 0) / 1000.0, 1) as total_km,
-  bool_or(t.status = 'in_progress') as on_hire_now,
-  max(t.started_at) at time zone 'Asia/Colombo' as last_trip_at
+  coalesce(bool_or(t.status = 'in_progress' and t.updated_at > now() - interval '5 minutes'), false) as on_hire_now,
+  count(t.id) filter (where t.status = 'completed' and t.started_at >= date_trunc('day', now() at time zone 'Asia/Colombo') at time zone 'Asia/Colombo') as trips_today,
+  coalesce(sum(t.total) filter (where t.status = 'completed' and t.started_at >= date_trunc('day', now() at time zone 'Asia/Colombo') at time zone 'Asia/Colombo'), 0) as fares_today,
+  max(t.started_at) as last_trip_at
 from public.drivers d
 left join public.trips t on t.driver_id = d.id
 group by d.id;
 
-revoke all on public.driver_summary from anon, authenticated;
+revoke all on public.driver_summary from anon;
+grant select on public.driver_summary to authenticated;
+
+-- To make someone an admin: create their login in Authentication -> Users ->
+-- Add user (email + password, tick "Auto Confirm User"), then run:
+--   insert into public.admins (user_id)
+--   select id from auth.users where email = 'admin@example.com'
+--   on conflict do nothing;

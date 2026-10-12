@@ -5,7 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import type { StringKey } from './i18n';
 import { mobileToLoginId } from './phone';
 import { supabase } from './supabase';
-import { syncTrips } from './sync';
+import { heartbeat, syncTrips } from './sync';
 
 export type Driver = {
   id: string;
@@ -15,9 +15,12 @@ export type Driver = {
   nic: string;
   vehicle_no: string;
   licence_no: string;
+  /** False when an admin has deactivated the account. Missing in profiles cached by older versions. */
+  active?: boolean;
+  last_seen_at?: string | null;
 };
 
-export type Registration = Omit<Driver, 'id'> & { password: string };
+export type Registration = Omit<Driver, 'id' | 'active' | 'last_seen_at'> & { password: string };
 
 const DRIVER_KEY = 'driver';
 
@@ -46,6 +49,8 @@ type Auth = {
   ready: boolean;
   session: Session | null;
   driver: Driver | null;
+  /** The admin has deactivated this driver; the app is blocked until reactivated. */
+  deactivated: boolean;
   signIn: (mobile94: string, password: string) => Promise<StringKey | null>;
   register: (r: Registration) => Promise<StringKey | null>;
   signOut: () => Promise<void>;
@@ -58,13 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [driver, setDriver] = useState<Driver | null>(loadCachedDriver);
 
-  const refreshDriver = useCallback(async (userId: string) => {
-    if (!supabase) return;
+  const refreshDriver = useCallback(async (userId: string): Promise<Driver | null> => {
+    if (!supabase) return null;
     const { data } = await supabase.from('drivers').select('*').eq('id', userId).maybeSingle<Driver>();
     if (data) {
       Storage.setItemSync(DRIVER_KEY, JSON.stringify(data));
       setDriver(data);
     }
+    return data ?? null;
   }, []);
 
   useEffect(() => {
@@ -76,16 +82,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.session) {
         refreshDriver(data.session.user.id).catch(() => {});
         syncTrips().catch(() => {});
+        heartbeat().catch(() => {});
       }
     });
     const { data } = client.auth.onAuthStateChange((_event, s) => setSession(s));
-    // Trips finished offline go up the next time the app is opened with a connection.
+    // Coming back to the app: upload trips finished offline, tell the office the
+    // driver is online, and pick up a status change made by an admin.
     const appState = AppState.addEventListener('change', (s) => {
-      if (s === 'active') syncTrips().catch(() => {});
+      if (s !== 'active') return;
+      syncTrips().catch(() => {});
+      heartbeat().catch(() => {});
+      client.auth.getSession().then(({ data: d }) => {
+        if (d.session) refreshDriver(d.session.user.id).catch(() => {});
+      });
     });
+    // While the app is open, say so every 2 minutes (during a hire the trip upload does it every minute).
+    const beat = setInterval(() => {
+      if (AppState.currentState === 'active') heartbeat().catch(() => {});
+    }, 120_000);
     return () => {
       data.subscription.unsubscribe();
       appState.remove();
+      clearInterval(beat);
     };
   }, [refreshDriver]);
 
@@ -94,8 +112,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabase) return 'setupNeeded';
       const { data, error } = await supabase.auth.signInWithPassword({ email: mobileToLoginId(mobile94), password });
       if (error) return authErrorKey(error, 'loginFailed');
-      await refreshDriver(data.user.id).catch(() => {});
+      const profile = await refreshDriver(data.user.id).catch(() => null);
+      if (profile?.active === false) {
+        Storage.removeItemSync(DRIVER_KEY);
+        setDriver(null);
+        await supabase.auth.signOut();
+        return 'accountDeactivated';
+      }
       syncTrips().catch(() => {});
+      heartbeat().catch(() => {});
       return null;
     },
     [refreshDriver],
@@ -127,7 +152,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<Auth>(
-    () => ({ configured: !!supabase, ready, session, driver, signIn, register, signOut }),
+    () => ({
+      configured: !!supabase,
+      ready,
+      session,
+      driver,
+      deactivated: driver?.active === false,
+      signIn,
+      register,
+      signOut,
+    }),
     [ready, session, driver, signIn, register, signOut],
   );
 

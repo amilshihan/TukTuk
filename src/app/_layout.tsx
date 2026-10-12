@@ -1,9 +1,10 @@
 import '@/lib/tracking'; // registers the background location task at startup
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { I18nProvider, useI18n } from '@/lib/i18n';
+import { loadActiveTrip } from '@/lib/storage';
 import { colors } from '@/theme';
 
 export default function RootLayout() {
@@ -18,7 +19,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
-  const { configured, ready, session } = useAuth();
+  const { configured, ready, session, deactivated, signOut } = useAuth();
   const { t } = useI18n();
 
   if (!configured) {
@@ -30,6 +31,19 @@ function RootNavigator() {
     );
   }
   if (!ready) return <View style={styles.blank} />;
+
+  // Deactivated by an admin: block the app, but let a hire that's already running be finished first.
+  if (session && deactivated && !loadActiveTrip()) {
+    return (
+      <View style={styles.setup}>
+        <Text style={styles.setupTitle}>{t('deactivatedTitle')}</Text>
+        <Text style={styles.setupBody}>{t('accountDeactivated')}</Text>
+        <Pressable style={styles.signOut} onPress={() => signOut()}>
+          <Text style={styles.signOutText}>{t('signOut')}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   const signedIn = session != null;
   return (
@@ -57,4 +71,15 @@ const styles = StyleSheet.create({
   setup: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', padding: 24, gap: 12 },
   setupTitle: { color: colors.link, fontSize: 22, fontWeight: '800' },
   setupBody: { color: colors.text, fontSize: 16, lineHeight: 22 },
+  signOut: {
+    marginTop: 12,
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  signOutText: { color: colors.bad, fontSize: 16, fontWeight: '700' },
 });

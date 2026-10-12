@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Amil Taxi Meter Admin</title>
+    <link rel="icon" href="hero.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Login -->
+    <main id="login-view" class="login" hidden>
+      <img class="login-hero" src="hero.png" alt="Amil Taxi Meter" />
+      <form id="login-form" class="card login-card">
+        <h1>Admin login</h1>
+        <p class="muted">Manage drivers and see their status.</p>
+        <label>Email <input id="email" type="email" autocomplete="username" required /></label>
+        <label>Password <input id="password" type="password" autocomplete="current-password" required /></label>
+        <p id="login-error" class="error" hidden></p>
+        <button type="submit" class="btn btn-primary" id="login-btn">Log in</button>
+      </form>
+    </main>
+
+    <!-- Dashboard -->
+    <div id="app-view" hidden>
+      <header class="topbar">
+        <div class="brand">
+          <img src="hero.png" alt="" />
+          <div>
+            <strong>Amil Taxi Meter</strong>
+            <span>Admin</span>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <span id="updated" class="muted small"></span>
+          <button id="refresh-btn" class="btn btn-ghost" title="Refresh">↻ Refresh</button>
+          <button id="logout-btn" class="btn btn-ghost">Log out</button>
+        </div>
+      </header>
+
+      <main class="page">
+        <section class="stats" id="stats"></section>
+
+        <section class="card">
+          <div class="toolbar">
+            <h2>Drivers</h2>
+            <div class="filters" id="filters">
+              <button data-filter="all" class="chip chip-on">All</button>
+              <button data-filter="online" class="chip">Online</button>
+              <button data-filter="hire" class="chip">On hire</button>
+              <button data-filter="offline" class="chip">Offline</button>
+              <button data-filter="deactivated" class="chip">Deactivated</button>
+            </div>
+            <input id="search" type="search" placeholder="Search name, mobile, tuk tuk no., NIC…" />
+          </div>
+          <p id="list-error" class="error" hidden></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Driver</th>
+                  <th>Status</th>
+                  <th>Tuk tuk</th>
+                  <th class="num">Today</th>
+                  <th class="num">All trips</th>
+                  <th>Registered</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="drivers"></tbody>
+            </table>
+          </div>
+          <p id="empty" class="muted center" hidden>No drivers match.</p>
+        </section>
+      </main>
+    </div>
+
+    <!-- Driver detail panel -->
+    <aside id="panel" class="panel" hidden>
+      <div class="panel-inner">
+        <button id="panel-close" class="btn btn-ghost panel-close" aria-label="Close">✕</button>
+        <div id="panel-body"></div>
+      </div>
+    </aside>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

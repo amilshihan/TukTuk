@@ -101,6 +101,14 @@ export async function syncActiveTrip(): Promise<void> {
     'in_progress',
   );
   await supabase!.from('trips').upsert(row, { onConflict: 'id' });
+  await heartbeat().catch(() => {});
+}
+
+/** Tell the office this driver's app is open right now (admin website: "online"). */
+export async function heartbeat(): Promise<void> {
+  const user = await signedInUser();
+  if (typeof user !== 'string') return;
+  await supabase!.from('drivers').update({ last_seen_at: new Date().toISOString() }).eq('id', user);
 }
 
 /** Everything that should be on the server: finished trips first, then the live one. */

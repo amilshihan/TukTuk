@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useMeter, type GpsStatus } from '@/hooks/useMeter';
 import { formatDuration, formatKm, formatMoney, isNightHire } from '@/lib/fare';
+import { useAuth } from '@/lib/auth';
 import { useI18n, type StringKey } from '@/lib/i18n';
 import { FareRows } from '@/components/FareRows';
 import { HomeView } from '@/components/HomeView';
@@ -13,9 +14,14 @@ import { colors, radius } from '@/theme';
 export default function MeterScreen() {
   const { t } = useI18n();
   const meter = useMeter();
+  const { deactivated } = useAuth();
   const { trip, fare } = meter;
 
   const onStart = async () => {
+    if (deactivated) {
+      Alert.alert(t('deactivatedTitle'), t('accountDeactivated'));
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     const ok = await meter.start();
     if (!ok) {
