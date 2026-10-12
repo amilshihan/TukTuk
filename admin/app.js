@@ -173,19 +173,57 @@ const toggleButton = (d) =>
     ? `<button class="btn btn-danger" data-toggle="${esc(d.id)}">Deactivate</button>`
     : `<button class="btn btn-success" data-toggle="${esc(d.id)}">Activate</button>`;
 
+/** In-page confirmation (window.confirm is blocked in some browsers). Resolves true on OK. */
+function ask(title, text, okLabel, danger) {
+  return new Promise((resolve) => {
+    $('dialog-title').textContent = title;
+    $('dialog-text').textContent = text;
+    const ok = $('dialog-ok');
+    ok.textContent = okLabel;
+    ok.className = `btn ${danger ? 'btn-danger' : 'btn-success'}`;
+    $('dialog').hidden = false;
+    ok.focus();
+    const done = (answer) => {
+      $('dialog').hidden = true;
+      ok.removeEventListener('click', yes);
+      $('dialog-cancel').removeEventListener('click', no);
+      resolve(answer);
+    };
+    const yes = () => done(true);
+    const no = () => done(false);
+    ok.addEventListener('click', yes);
+    $('dialog-cancel').addEventListener('click', no);
+  });
+}
+
+let toastTimer = null;
+function toast(message, isError = false) {
+  const el = $('toast');
+  el.textContent = message;
+  el.classList.toggle('toast-error', isError);
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 4000);
+}
+
 async function toggleDriver(id) {
   const d = state.drivers.find((x) => x.id === id);
   if (!d) return;
   const turnOn = !d.active;
-  const question = turnOn
-    ? `Activate ${d.full_name}? They will be able to log in and use the meter again.`
-    : `Deactivate ${d.full_name}? They won't be able to log in or start new hires. A hire already running can be finished.`;
-  if (!confirm(question)) return;
-  const { error } = await supabase.from('drivers').update({ active: turnOn }).eq('id', id);
-  if (error) {
-    alert(`Could not change the status: ${error.message}`);
-    return;
-  }
+  const ok = turnOn
+    ? await ask(`Activate ${d.full_name}?`, 'They will be able to log in and use the meter again.', 'Activate', false)
+    : await ask(
+        `Deactivate ${d.full_name}?`,
+        "They won't be able to log in or start new hires. A hire already running can be finished.",
+        'Deactivate',
+        true,
+      );
+  if (!ok) return;
+  const { data, error } = await supabase.from('drivers').update({ active: turnOn }).eq('id', id).select('id');
+  if (error) return toast(`Could not change the status: ${error.message}`, true);
+  // No row back means the database rules refused the change (e.g. not an admin any more).
+  if (!data?.length) return toast('The change was not saved. Check you are still an admin.', true);
+  toast(turnOn ? `${d.full_name} is active again.` : `${d.full_name} has been deactivated.`);
   await loadDrivers();
 }
 
@@ -289,6 +327,10 @@ $('panel').addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('dialog').hidden) {
+    $('dialog-cancel').click();
+    return;
+  }
   if (e.key === 'Escape' && !$('panel').hidden) {
     $('panel').hidden = true;
     state.openId = null;
